@@ -15,3 +15,70 @@ musicalStructure:
   totalDurationSeconds: 7.0
   totalBars: 4
   visualLeadTimeSeconds: 0.2  
+
+# Example YAML structure for measure highlighters in bwv1006.config.yaml
+
+measureHighlighters:
+  line-breaks:
+    name: "Structure"  # Display name for UI
+    type: conditional
+    colors: [gainsboro, whitesmoke]
+    opacity: 0.3
+    condition:
+      type: line-starts
+      bars: [1, 3, 7, 9, 17, 29, 33, 39, 43, 67, 79, 83, 90, 93, 99, 102, 109, 113, 119, 123, 130, 138]
+      # Bars in this list get color index 0, others get color index 1
+  
+  alternating:
+    name: "Alternating Colors"
+    type: alternating
+    colors: [lightblue, lightgreen, lightyellow, lightpink]
+    opacity: 0.25
+  
+  harmonic:
+    name: "Harmonic Analysis"
+    type: ranges
+    opacity: 0.3
+    ranges:
+      - start: 1
+        end: 20
+        color: lightcyan
+      - start: 21
+        end: 40
+        color: lightgreen
+      - start: 41
+        end: 60
+        color: lightyellow
+      - start: 61
+        end: 80
+        color: lightpink
+      - start: 81
+        end: 100
+        color: lightblue
+      - start: 101
+        end: 138
+        color: lavender
+
+  phrase-structure:
+    name: "Phrase Structure"
+    type: conditional
+    colors: [lightsteelblue, lightgoldenrodyellow]
+    opacity: 0.25
+    condition:
+      type: modulo
+      divisor: 4
+      remainder: 1  # Every 4th bar starting from bar 1 gets color index 0
+      
+  cadences:
+    name: "Cadential Points"
+    type: conditional
+    colors: [transparent, lightcoral]
+    opacity: 0.4
+    condition:
+      type: specific-bars
+      bars: [16, 32, 48, 64, 80, 96, 112, 138]  # These bars get color index 1
+      default_index: 0  # All other bars get color index 0
+
+# Alternative structure if no measure highlighters are defined:
+# measureHighlighters: null
+# or simply omit the measureHighlighters key entirely
