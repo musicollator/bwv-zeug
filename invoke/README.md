@@ -6,17 +6,22 @@ Automated task generation system for Bach score processing using Mermaid diagram
 
 1. **Generate ANTLR parsers** (required after grammar changes):
    ```bash
+   cd invoke/antlr
    source build_antlr.sh
    ```
 
 2. **Generate tasks** from Mermaid diagram:
    ```bash
+   cd invoke
    python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
    ```
 
-3. **Run tasks** (from BWV project directory):
+   % alias b  
+   b='invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke'
+
+3. **Run tasks** (from a BWV project directory, bwv1006, bwv543, etc.):
    ```bash
-   invoke pdf  # uses tasks.py which includes tasks_generated.py
+   b pdf  
    ```
 
 ## Files

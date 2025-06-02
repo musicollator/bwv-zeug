@@ -299,7 +299,7 @@ def smart_task(c, *, sources, targets, commands=None, python_func=None, force=Fa
     
     task_name = inspect.stack()[1].function
     print(f"")
-    print(f"[{task_name}] ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓")
+    print(f"↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   ↓   [{task_name}]")
     
     if force or sources_changed(task_name, sources, cache_file):
         remove_outputs(*targets)
