@@ -11,12 +11,12 @@ Automated task generation system for Bach score processing using Mermaid diagram
 
 2. **Generate tasks** from Mermaid diagram:
    ```bash
-   python tasks_mermaid_utils.py tasks.mmd --generate-tasks
+   python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
    ```
 
 3. **Run tasks** (from BWV project directory):
    ```bash
-   invoke build_pdf  # uses tasks.py which includes tasks_generated.py
+   invoke pdf  # uses tasks.py which includes tasks_generated.py
    ```
 
 ## Files
