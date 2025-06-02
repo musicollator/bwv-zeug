@@ -1,0 +1,22 @@
+# ANTLR generated files
+*.interp
+*.tokens
+MermaidPipeline*.py
+.antlr/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Generated tasks
+tasks_generated.py
+
+# Build cache
+.build_cache.json
+
+*.log
+*.midi
+*.svg
+*.pdf
+
+.DS_Store

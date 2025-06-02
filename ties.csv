@@ -1,0 +1,5 @@
+primary,secondary
+test/test_ties_chain.ly:21:4:5,test/test_ties_chain.ly:21:9:10
+test/test_ties_chain.ly:24:4:5,test/test_ties_chain.ly:25:4:5
+test/test_ties_chain.ly:28:4:5,test/test_ties_chain.ly:28:9:10
+test/test_ties_chain.ly:28:9:10,test/test_ties_chain.ly:29:4:5

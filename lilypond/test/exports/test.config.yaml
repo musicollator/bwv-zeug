@@ -1,0 +1,17 @@
+workInfo:
+  title: "Test"
+  fullTitle: "Test"
+  composer: "Me"
+  workId: "test"
+  movementName: "test"
+  externalURL: ""
+
+files:
+  svgPath: "test_optimized.svg"
+  notesPath: "test_json_notes.json"
+  audioPath: "test.wav"
+  
+musicalStructure:
+  totalDurationSeconds: 7.0
+  totalBars: 4
+  visualLeadTimeSeconds: 0.2  

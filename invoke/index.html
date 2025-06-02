@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid BWV Pipeline Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .mermaid {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .error {
+            background-color: #ffe6e6;
+            color: #cc0000;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #005999;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎼 BWV Pipeline Mermaid Test</h1>
+    
+    <div class="controls">
+        <button onclick="loadAndRender()">🔄 Load & Render tasks.mmd</button>
+    </div>
+    
+    <div id="error-display"></div>
+    <div id="diagram-container"></div>
+    
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'neutral',
+            securityLevel: 'loose'
+        });
+        
+        async function loadAndRender() {
+            const errorDiv = document.getElementById('error-display');
+            const container = document.getElementById('diagram-container');
+            
+            try {
+                // Clear previous content
+                errorDiv.innerHTML = '';
+                container.innerHTML = '';
+                
+                // Load tasks.mmd from same directory
+                const response = await fetch('./tasks.mmd');
+                if (!response.ok) {
+                    throw new Error(`Failed to load tasks.mmd: ${response.status}`);
+                }
+                
+                const mermaidCode = await response.text();
+                console.log('Loaded mermaid code:', mermaidCode);
+                
+                // Create container for diagram
+                const diagramDiv = document.createElement('div');
+                diagramDiv.className = 'mermaid';
+                diagramDiv.textContent = mermaidCode;
+                container.appendChild(diagramDiv);
+                
+                // Render the diagram
+                await mermaid.run();
+                
+                console.log('✅ Diagram rendered successfully!');
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                errorDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-load on page load
+        window.addEventListener('load', loadAndRender);
+    </script>
+</body>
+</html>
