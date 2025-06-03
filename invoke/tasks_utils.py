@@ -412,28 +412,36 @@ def run_bwv_script(script_name, *args):
     print(f"🐍 Running: python3 {script_path.name} {' '.join(args)}")
     print(f"🔧 PROJECT_NAME={project_name}")
     
-    # Use gentler error handling - don't use check=True
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    # Run without capturing output to allow real-time display
+    # Only capture output if there's an error for debugging
+    result = subprocess.run(cmd, env=env)
     
     if result.returncode != 0:
         print(f"")
+        print(f"🚨 Script failed with exit code {result.returncode}")
+        
+        # Re-run with captured output for error details
+        print(f"🔍 Re-running to capture error details...")
+        error_result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        
+        print(f"")
         print(f"🚨 Script output (stdout):")
-        if result.stdout.strip():
-            for line in result.stdout.strip().split('\n'):
+        if error_result.stdout.strip():
+            for line in error_result.stdout.strip().split('\n'):
                 print(f"   {line}")
         else:
             print(f"   (no stdout)")
             
         print(f"")
         print(f"🚨 Script errors (stderr):")
-        if result.stderr.strip():
-            for line in result.stderr.strip().split('\n'):
+        if error_result.stderr.strip():
+            for line in error_result.stderr.strip().split('\n'):
                 print(f"   {line}")
         else:
             print(f"   (no stderr)")
         
         # Create a proper exception that smart_task can catch
         from subprocess import CalledProcessError
-        raise CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+        raise CalledProcessError(result.returncode, cmd, error_result.stdout, error_result.stderr)
     
     return result
