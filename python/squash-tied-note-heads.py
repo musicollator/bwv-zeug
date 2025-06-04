@@ -147,12 +147,24 @@ def main():
             raise ValueError(f"Ties CSV missing required columns. Expected: {expected_ties_columns}, Found: {set(ties_df.columns)}")
 
         # =================================================================
-        # STEP 1: CLEAN SVG HREF PATHS
+        # STEP 1: CLEAN AND VALIDATE SVG DATA
         # =================================================================
 
+        print("🧹 Cleaning and validating SVG data...")
+        
+        # Check for and handle missing href values
+        missing_href_count = svg_df['href'].isna().sum()
+        if missing_href_count > 0:
+            print(f"   ⚠️  Found {missing_href_count} rows with missing href values - removing them")
+            svg_df = svg_df.dropna(subset=['href']).reset_index(drop=True)
+            print(f"   ✅ Cleaned data: {len(svg_df)} valid noteheads remaining")
+        
+        # Ensure href column is string type
+        svg_df['href'] = svg_df['href'].astype(str)
+        
         # Remove LilyPond editor artifacts from href paths to normalize references
         # Example: "textedit:///work/file.ly:10:5" -> "file.ly:10:5"
-        print("🧹 Normalizing SVG href paths...")
+        print("   🔧 Normalizing SVG href paths...")
         svg_df["href"] = (
             svg_df["href"]
             .str.replace("textedit://", "", regex=False)  # Remove protocol prefix
@@ -164,7 +176,7 @@ def main():
         # =================================================================
 
         # Get all secondary (tied-to) hrefs from the ties data
-        secondary_hrefs = set(ties_df["secondary"])
+        secondary_hrefs = set(ties_df["secondary"]) if len(ties_df) > 0 else set()
         print(f"   Found {len(secondary_hrefs)} secondary tied noteheads")
         
         # Filter to keep only primary noteheads (not secondary to any tie)

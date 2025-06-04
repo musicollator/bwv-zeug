@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 """
-svg_optimize.py - Minimal SVGO wrapper with project context support
+optimize.py - SVG optimization using SVGO
 
-This script optimizes SVG files using SVGO with automatic project-aware file naming.
-
-Usage modes:
-1. Build system mode (PROJECT_NAME environment variable set):
-   python svg_optimize.py
-   → Uses project naming conventions automatically
-
-2. Standalone mode (explicit arguments):
-   python svg_optimize.py input.svg output.svg
-   → Uses specified files
+This script optimizes SVG files using SVGO with automatic file size reporting
+and reduction percentage calculations.
 
 Features:
-- Project-aware file naming (bwv1006_*, bwv543_*, etc.)
-- Automatic output directory creation
+- SVG optimization using SVGO (Node.js package)
 - File size reporting with reduction percentage
-- Graceful fallback when _scripts_utils not available
+- Automatic output directory creation
+- Command line interface with required input/output arguments
 """
 
 import subprocess
 import sys
+import argparse
 from pathlib import Path
 
 def optimize_svg(input_file, output_file):
@@ -56,9 +49,17 @@ def optimize_svg(input_file, output_file):
     
     # Run SVGO optimization
     print(f"   🔧 Running SVGO optimization...")
-    result = subprocess.run([
-        'npx', 'svgo', str(input_path), '--output', str(output_path)
-    ], capture_output=True, text=True)
+    
+    try:
+        result = subprocess.run([
+            'npx', 'svgo', str(input_path), '--output', str(output_path)
+        ], capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        print(f"❌ SVGO optimization timed out after 60 seconds")
+        return False
+    except FileNotFoundError:
+        print(f"❌ SVGO not found. Please install with: npm install -g svgo")
+        return False
     
     # Check if optimization succeeded
     if result.returncode == 0 and output_path.exists():
@@ -72,43 +73,84 @@ def optimize_svg(input_file, output_file):
         print(f"❌ SVGO optimization failed:")
         if result.stderr:
             print(f"   Error: {result.stderr}")
+        if result.stdout:
+            print(f"   Output: {result.stdout}")
         return False
 
-def main():
-    """Main function handling both build system and standalone modes."""
+def setup_argument_parser():
+    """Setup command line argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Optimize SVG files using SVGO",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python optimize.py -i score.svg -o score_optimized.svg
+  python optimize.py --input music.svg --output exports/music_optimized.svg
+
+Requirements:
+  - Node.js and npm installed
+  - SVGO package: npm install -g svgo
+        """
+    )
     
-    try:
-        # Try to use project context system
-        from _scripts_utils import get_io_files
-        
-        input_file, output_file = get_io_files(
-            "Optimize SVG files using SVGO",
-            "{project}_no_hrefs_in_tabs_swellable.svg",
-            "exports/{project}_optimized.svg"
-        )
-        
-    except ImportError:
-        # Fallback for standalone use without _scripts_utils
-        if len(sys.argv) != 3:
-            print("Usage: python svg_optimize.py <input.svg> <output.svg>")
-            print("")
-            print("Description: Optimize SVG files using SVGO")
-            print("")
-            print("Examples:")
-            print("  python svg_optimize.py score.svg score_optimized.svg")
-            print("  python svg_optimize.py input/*.svg output/")
-            print("")
-            print("Or run from build system with PROJECT_NAME environment variable")
-            sys.exit(1)
-        
-        input_file = sys.argv[1]
-        output_file = sys.argv[2]
+    parser.add_argument('-i', '--input', 
+                       required=True,
+                       help='Input SVG file path (required)')
+    
+    parser.add_argument('-o', '--output',
+                       required=True, 
+                       help='Output SVG file path (required)')
+    
+    return parser.parse_args()
+
+def main():
+    """Main function with command line argument support."""
+    
+    print("🚀 SVG Optimization Pipeline")
+    print("=" * 30)
+    
+    # Parse arguments
+    args = setup_argument_parser()
+    
+    input_file = args.input
+    output_file = args.output
+    
+    print(f"📄 Processing file:")
+    print(f"   Input: {input_file}")
+    print(f"   Output: {output_file}")
+    print()
+    
+    # Validate input file exists
+    input_path = Path(input_file)
+    if not input_path.exists():
+        print(f"❌ Input file not found: {input_path}")
+        print("💡 Usage: python optimize.py -i INPUT.svg -o OUTPUT.svg")
+        return 1
     
     # Run the optimization
-    success = optimize_svg(input_file, output_file)
-    
-    # Exit with appropriate code
-    sys.exit(0 if success else 1)
+    try:
+        success = optimize_svg(input_file, output_file)
+        
+        if success:
+            print("\n🎉 Optimization completed successfully!")
+            return 0
+        else:
+            print("\n💥 Optimization failed")
+            return 1
+            
+    except Exception as e:
+        print(f"❌ Error during optimization: {e}")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    try:
+        exit_code = main()
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n⚠️  Interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

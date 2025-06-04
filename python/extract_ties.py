@@ -2,7 +2,7 @@
 """
 extract_ties.py - Extract tie relationships from SVG files
 
-Updated version that works with the new Tie grob engraver.
+Updated version that works with both modern href and legacy xlink:href formats.
 """
 
 import xml.etree.ElementTree as ET
@@ -132,14 +132,30 @@ def find_element_by_id(root, element_id):
     return None
 
 def find_element_href(element):
-    """Find the xlink:href attribute for an element."""
-    # Check if element itself has an href
+    """
+    Find the href attribute for an element, supporting both modern and legacy formats.
+    
+    This function searches for href attributes in both modern (href) and legacy 
+    (xlink:href) formats, as SVG files may use either depending on processing.
+    """
+    # Check if element itself has an href (modern format)
+    href = element.get('href')
+    if href:
+        return href
+    
+    # Check if element itself has an href (legacy format)
     href = element.get('{http://www.w3.org/1999/xlink}href')
     if href:
         return href
     
-    # Look for href in child <a> elements
+    # Look for href in child elements (both formats)
     for child in element.iter():
+        # Try modern format first
+        child_href = child.get('href')
+        if child_href:
+            return child_href
+            
+        # Try legacy format
         child_href = child.get('{http://www.w3.org/1999/xlink}href')
         if child_href:
             return child_href

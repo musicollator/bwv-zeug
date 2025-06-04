@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-svg_extract_note_heads.py
+extract_note_heads.py
 
 SVG Musical Notehead Extraction Pipeline  
 ========================================
@@ -18,8 +18,15 @@ Process Overview:
 5. Create sorted dataset ordered by visual appearance (left-to-right, top-to-bottom)
 6. Export CSV with required arguments for input SVG and output path
 
+Configuration System:
+- Tolerance can be specified via CLI argument (-t/--tolerance)
+- If no CLI tolerance provided, looks for project-specific YAML config (e.g., bwv659.yaml)
+- Falls back to default tolerance of 1.0 if no config found
+- This allows per-project tolerance tuning without complicating the build system
+
 Input Files:
 - SVG file with embedded LilyPond cross-references (href contains .ly file paths)
+- Optional: Project YAML config file (PROJECT_NAME.yaml) for tolerance setting
 
 Output:
 - CSV file with notehead coordinates, pitches, and reference links in format: snippet,href,x,y
@@ -32,7 +39,54 @@ import argparse
 import os
 import sys
 import pandas as pd
-from _scripts_utils import save_dataframe_with_lilypond_csv
+from pathlib import Path
+from _scripts_utils import save_dataframe_with_lilypond_csv, get_project_name
+
+# =============================================================================
+# PROJECT CONFIGURATION LOADING
+# =============================================================================
+
+def load_project_tolerance():
+    """
+    Load tolerance configuration from project-specific YAML file.
+    
+    This function implements a graceful configuration loading system:
+    1. Uses the existing get_project_name() from _scripts_utils
+    2. Looks for PROJECT_NAME.yaml in the current directory
+    3. Extracts tolerance value from YAML if file exists
+    4. Falls back to default tolerance of 1.0 if no config or errors
+    
+    The YAML file format expected:
+        tolerance: 1.5
+        # Other project settings can be added here
+    
+    Returns:
+        float: Tolerance value for chord grouping (default: 1.0)
+    """
+    project_name = get_project_name()
+    config_file = Path(f"{project_name}.yaml")
+    
+    print(f"🔍 Looking for project config: {config_file}")
+    
+    if config_file.exists():
+        try:
+            import yaml
+            print(f"📄 Loading config from: {config_file}")
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+                tolerance = config.get('tolerance', 1.0)
+                print(f"⚙️  Using tolerance from config: {tolerance}")
+                return tolerance
+        except ImportError:
+            print(f"⚠️  Warning: PyYAML not installed, cannot read {config_file}")
+            print(f"   Install with: pip install PyYAML")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load {config_file}: {e}")
+            print(f"   Using default tolerance")
+    else:
+        print(f"📝 No config file found, using default tolerance")
+    
+    return 1.0  # Default tolerance
 
 # =============================================================================
 # LILYPOND PITCH PATTERN MATCHING
@@ -113,6 +167,12 @@ def group_notes_by_x_tolerance(notes, tolerance=0.0):
     LilyPond often places chord notes at slightly different x-coordinates for visual
     clarity, but they should be treated as simultaneous for MIDI alignment.
     
+    This function groups notes that are within the specified tolerance and sorts them
+    appropriately for musical interpretation:
+    - Notes within tolerance of each other are considered simultaneous (chords)
+    - Within each chord group, notes are sorted top-to-bottom (descending y)
+    - Chord groups are ordered left-to-right by their x-position
+    
     Args:
         notes (list): List of notehead dictionaries with x, y coordinates
         tolerance (float): Maximum x-coordinate difference to consider simultaneous
@@ -123,8 +183,8 @@ def group_notes_by_x_tolerance(notes, tolerance=0.0):
     if not notes:
         return notes
         
-
-    print(f"tolerance: ............. {tolerance}")
+    print(f"🎯 Applying chord tolerance: ±{tolerance} units")
+    
     # Sort by x-coordinate first for grouping
     notes_sorted = sorted(notes, key=lambda n: n["x"])
     
@@ -134,18 +194,18 @@ def group_notes_by_x_tolerance(notes, tolerance=0.0):
     # Group notes within tolerance
     for note in notes_sorted[1:]:
         if abs(note["x"] - current_group[0]["x"]) <= tolerance:
-            # Within tolerance - add to current group
+            # Within tolerance - add to current group (chord)
             current_group.append(note)
         else:
-            # Outside tolerance - start new group
+            # Outside tolerance - start new group (new time position)
             groups.append(current_group)
             current_group = [note]
     
     # Don't forget the last group
     groups.append(current_group)
     
-    # Sort within each group by y-coordinate (top to bottom)
-    # and sort groups by their representative x-coordinate
+    # Sort within each group by y-coordinate (top to bottom = descending y)
+    # This ensures consistent ordering within chords
     result = []
     for group in groups:
         # Sort notes within group by y-coordinate (descending = top to bottom)
@@ -154,16 +214,63 @@ def group_notes_by_x_tolerance(notes, tolerance=0.0):
     
     return result
 
+def find_href_in_anchor(anchor_element, ns):
+    """
+    Find href attribute in anchor element, supporting both modern and legacy formats.
+    
+    LilyPond SVG files may use either modern 'href' attributes or legacy 'xlink:href'
+    attributes depending on the LilyPond version and processing pipeline. This function
+    checks both formats to ensure compatibility.
+    
+    Args:
+        anchor_element: XML element representing the <a> tag
+        ns: Namespace dictionary for XML queries
+        
+    Returns:
+        str or None: The href value if found, None otherwise
+    """
+    # Try modern href format first
+    href = anchor_element.get('href')
+    if href:
+        return href
+    
+    # Try legacy xlink:href format
+    href = anchor_element.get(f"{{{ns['xlink']}}}href")
+    if href:
+        return href
+    
+    return None
+
 def setup_argument_parser():
-    """Setup command line argument parser."""
+    """
+    Setup command line argument parser with configuration-aware tolerance.
+    
+    The tolerance argument is now optional - if not provided via CLI, the script
+    will automatically look for project-specific configuration files to determine
+    the appropriate tolerance value for chord grouping.
+    """
     parser = argparse.ArgumentParser(
         description="Extract notehead positions and pitch information from SVG files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Use automatic tolerance detection from project config:
   python extract_note_heads.py -i score.svg -o noteheads.csv
-  python extract_note_heads.py --input music.svg --output music_note_heads.csv --tolerance 1.5
-  python extract_note_heads.py -i score.svg -o noteheads.csv -t 3.0
+  
+  # Override with specific tolerance:
+  python extract_note_heads.py -i score.svg -o noteheads.csv --tolerance 3.0
+  
+  # Minimal tolerance for precise chord detection:
+  python extract_note_heads.py -i score.svg -o noteheads.csv -t 0.5
+
+Configuration Files:
+  Create PROJECT_NAME.yaml in the working directory to set project-specific tolerance:
+  
+  # Example bwv659.yaml:
+  tolerance: 1.5
+  
+  # Example bwv543.yaml:
+  tolerance: 3.0
         """
     )
     
@@ -177,13 +284,24 @@ Examples:
     
     parser.add_argument('-t', '--tolerance',
                        type=float,
-                       default=1.0,
-                       help='X-coordinate tolerance for grouping simultaneous notes (default: 2.0)')
+                       default=None,  # Changed: Now optional, None means "auto-detect"
+                       help='X-coordinate tolerance for grouping simultaneous notes '
+                            '(default: auto-detect from project config or 1.0)')
     
     return parser.parse_args()
 
 def main():
-    """Main function with command line argument support."""
+    """
+    Main function with configuration-aware tolerance loading.
+    
+    This function implements the complete notehead extraction pipeline with
+    intelligent tolerance configuration:
+    1. Parse command line arguments
+    2. Determine tolerance (CLI override > project config > default)
+    3. Process SVG file to extract noteheads
+    4. Apply tolerance-based chord grouping
+    5. Export results to CSV
+    """
     
     print("🎼 SVG Notehead Extractor")
     print("=" * 50)
@@ -193,7 +311,16 @@ def main():
     
     svg_file = args.input
     output_csv = args.output
-    tolerance = args.tolerance
+    
+    # CONFIGURATION-AWARE TOLERANCE LOADING
+    # Priority: CLI argument > project config > default
+    if args.tolerance is not None:
+        # Explicit tolerance provided via CLI - use it
+        tolerance = args.tolerance
+        print(f"⚙️  Using tolerance from CLI argument: {tolerance}")
+    else:
+        # No CLI tolerance - check project configuration
+        tolerance = load_project_tolerance()
     
     print(f"📄 Input SVG: {svg_file}")
     print(f"📊 Output CSV: {output_csv}")
@@ -216,6 +343,7 @@ def main():
             svg = ET.parse(f)
 
         # SVG namespaces for XPath queries
+        # Both legacy and modern namespace formats supported
         NS = {'svg': 'http://www.w3.org/2000/svg', 'xlink': 'http://www.w3.org/1999/xlink'}
         root = svg.getroot()
 
@@ -229,15 +357,19 @@ def main():
         notehead_data = []
 
         # Find all clickable <a> elements (these contain the noteheads)
+        # These anchors have href attributes pointing back to LilyPond source
         for a in root.findall(".//svg:a", NS):
-            # Get the cross-reference URL
-            href = a.get(f"{{{NS['xlink']}}}href")
+            # Get the cross-reference URL (supporting both modern and legacy formats)
+            href = find_href_in_anchor(a, NS)
             
-            # Extract pitch information from the href
+            if not href:
+                continue  # Skip elements without href (not musical content)
+            
+            # Extract pitch information from the href by parsing LilyPond source
             snippet = extract_text_from_href(href)
 
             # Skip if we couldn't extract valid pitch information
-            if not snippet is None:
+            if snippet is not None:
                 # Find the graphical group element containing visual positioning
                 g = a.find("svg:g", NS)
                 
@@ -249,7 +381,7 @@ def main():
                     match = re.search(r"translate\(([-\d.]+)[ ,]+([-\d.]+)", transform)
                     
                     if not match:
-                        print(f"no matching transform near <a> of [{href}] for snippet [{snippet}]")
+                        print(f"⚠️  No transform found for notehead: {href} [{snippet}]")
                     
                     if match:
                         # Extract and convert coordinates
@@ -273,22 +405,31 @@ def main():
 
         print("📐 Sorting noteheads by visual position with chord tolerance...")
 
-        # Apply tolerance-based sorting
+        # Apply tolerance-based sorting to group chords properly
         notehead_data = group_notes_by_x_tolerance(notehead_data, tolerance=tolerance)
 
         print(f"   🎯 Sorted {len(notehead_data)} noteheads with chord tolerance (±{tolerance} units)")
         
-        # Show grouping statistics
+        # Show grouping statistics for verification
         if notehead_data:
             x_positions = [n["x"] for n in notehead_data]
             unique_x_groups = 1
+            
+            # Count distinct time positions (chord groups)
             for i in range(1, len(x_positions)):
                 if abs(x_positions[i] - x_positions[i-1]) > tolerance:
                     unique_x_groups += 1
             
             print(f"   📊 Identified {unique_x_groups} distinct time positions")
             if unique_x_groups > 0:
-                print(f"   🎵 Average notes per position: {len(notehead_data)/unique_x_groups:.1f}")
+                avg_notes_per_position = len(notehead_data) / unique_x_groups
+                print(f"   🎵 Average notes per position: {avg_notes_per_position:.1f}")
+                
+                # Provide guidance on tolerance tuning
+                if avg_notes_per_position > 4:
+                    print(f"   💡 Tip: High notes per position - try increasing tolerance")
+                elif avg_notes_per_position < 1.2:
+                    print(f"   💡 Tip: Low notes per position - try decreasing tolerance")
 
         # =================================================================
         # CSV EXPORT
@@ -302,7 +443,7 @@ def main():
         # Reorder columns to match requested format: snippet, href, x, y
         notehead_df = notehead_df[["snippet", "href", "x", "y"]]
         
-        # Round coordinates to 3 decimal precision
+        # Round coordinates to 3 decimal precision for consistency
         notehead_df["x"] = notehead_df["x"].round(3)
         notehead_df["y"] = notehead_df["y"].round(3)
         
@@ -316,7 +457,7 @@ def main():
         extraction_summary = f"[ extracted {len(notehead_data)} noteheads with coordinates and pitch data ]"
         print(f"✅ Export complete: {output_csv} {extraction_summary}")
 
-        # Additional statistics for verification
+        # Additional statistics for verification and debugging
         if notehead_data:
             x_range = max(n["x"] for n in notehead_data) - min(n["x"] for n in notehead_data)
             y_range = max(n["y"] for n in notehead_data) - min(n["y"] for n in notehead_data)
@@ -327,11 +468,20 @@ def main():
             print(f"   📐 Y-coordinate range: {y_range:.1f} units") 
             print(f"   🎵 Unique pitch notations: {unique_pitches}")
             if unique_pitches > 0:
-                print(f"   🔗 Average notes per pitch: {len(notehead_data)/unique_pitches:.1f}")
+                avg_notes_per_pitch = len(notehead_data) / unique_pitches
+                print(f"   🔗 Average notes per pitch: {avg_notes_per_pitch:.1f}")
 
         print()
         print("🎉 Notehead extraction completed successfully!")
         print(f"🎯 Ready for alignment with MIDI data in next pipeline stage")
+        
+        # Configuration guidance for user
+        if args.tolerance is None:
+            project_name = get_project_name()
+            print(f"\n💡 Configuration tip:")
+            print(f"   To lock in this tolerance ({tolerance}) for project {project_name}:")
+            print(f"   Create {project_name}.yaml with content:")
+            print(f"   tolerance: {tolerance}")
 
     except FileNotFoundError as e:
         print(f"❌ File error: {e}")

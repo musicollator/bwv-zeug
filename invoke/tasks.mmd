@@ -1,6 +1,8 @@
 %%{init: {'theme':'neutral'}}%%
 graph TD
 
+%% python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
+
 %% ============================================================================
 %% INPUT NODES
 %% ============================================================================
@@ -14,49 +16,52 @@ I3[BWV000_ly_main.ly<br/>📄 Shared Dependencies]
 T1[pdf]
 T2[svg]
 T3[svg_one_line]
-T4[no_tabs]
+T4[filter]
 T5[swell]
 T6[optim]
 T7[noteheads]
-T8[timing]
+T8[events]
 T9[align]
 T0[ties]
 T11[squash]
+T12[filter_one_line]
 
 %% ============================================================================
 %% RUNNABLE NODES
 %% ============================================================================
-R1[docker run -v PWD:/work codello/lilypond:dev INCLUDES       BWV000.ly && mkdir -p exports && mv BWV000.pdf exports<br/>🐳 LilyPond PDF]
-R2[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000.ly<br/>🐳 LilyPond SVG]
-R3[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000_ly_one_line.ly<br/>🐳 LilyPond One-line SVG, ready for extract ties, and MIDI]
-R4[bwv_script:no_hrefs_in_tabs.py BWV000.svg<br/>🔗 Remove tab links]
-R5[bwv_script:ensure_swellable.py BWV000_no_hrefs_in_tabs.svg<br/>🎯 Animation prep]
-R6[bwv_script:optimize.py BWV000_no_hrefs_in_tabs_swellable.svg<br/>⚡ SVGO optimization]
-R7[bwv_script:extract_note_heads.py -i BWV000_ly_one_line.svg -o BWV000_note_heads.csv<br/>📍 Extract notehead positions]
-R8[bwv_script:extract_note_events.py -i BWV000_ly_one_line.midi -o BWV000_note_events.csv<br/>⏱️ Extract MIDI timing]
-R9[bwv_script:align_data.py -im BWV000_note_events.csv -is BWV000_note_heads_squashed.csv -o exports/BWV000_json_notes.json<br/>🎯 Align MIDI↔SVG]
-R0[bwv_script:extract_ties.py -i BWV000_ly_one_line.svg -o BWV000_ties.csv<br/>🔗 Extract Ties]
-R11[bwv_script:squash-tied-note-heads.py -i BWV000_note_heads.csv -t BWV000_ties.csv -o BWV000_note_heads_squashed.csv<br/>🎵 Squash tied noteheads]
+R1[docker run -v PWD:/work codello/lilypond:dev INCLUDES       BWV000.ly && mkdir -p exports && mv BWV000.pdf exports   <br/>🐳 LilyPond PDF]
+R2[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000.ly                                                <br/>🐳 LilyPond SVG]
+R3[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000_ly_one_line.ly                                    <br/>🐳 LilyPond One-line SVG, ready for extract ties, and MIDI]
+R4[bwv_script:remove_unwanted_hrefs.py   -i BWV000.svg                                                  -o BWV000_filtered.svg              <br/>🔗 Remove unwanted hrefs]
+R5[bwv_script:ensure_swellable.py        -i BWV000_filtered.svg                                         -o BWV000_filtered_swellable.svg    <br/>🎯 Prepare for swell animation]
+R6[bwv_script:optimize.py                -i BWV000_filtered_swellable.svg                               -o exports/BWV000_optimized.svg     <br/>⚡ SVGO optimization]
+R8[bwv_script:extract_note_events.py     -i BWV000_ly_one_line.midi                                     -o BWV000_note_events.csv           <br/>⏱️ Extract MIDI timing]
+R7[bwv_script:extract_note_heads.py      -i BWV000_ly_one_line_filtered.svg                             -o BWV000_note_heads.csv            <br/>📍 Extract notehead positions]
+R0[bwv_script:extract_ties.py            -i BWV000_ly_one_line_filtered.svg                             -o BWV000_ties.csv                  <br/>🔗 Extract ties]
+R11[bwv_script:squash-tied-note-heads.py -i BWV000_note_heads.csv   -t BWV000_ties.csv                  -o BWV000_note_heads_squashed.csv   <br/>🎵 Squash tied noteheads]
+R9[bwv_script:align_data.py              -im BWV000_note_events.csv -is BWV000_note_heads_squashed.csv  -o exports/BWV000_json_notes.json   <br/>🎯 Align MIDI↔SVG]
+R12[bwv_script:remove_unwanted_hrefs.py  -i BWV000_ly_one_line.svg                                      -o BWV000_ly_one_line_filtered.svg  <br/>🔗 Remove unwanted hrefs from one-line]
 
 %% ============================================================================
 %% OUTPUT NODES
 %% ============================================================================
-O2[BWV000.svg<br/>🎼 Main SVG Score]
-O3[BWV000_ly_one_line.svg<br/>🎼 One-line SVG]
-O4[BWV000_ly_one_line.midi<br/>🎵 MIDI Data]
-O5[BWV000_no_hrefs_in_tabs.svg<br/>🔄 Processed SVG]
-O6[BWV000_no_hrefs_in_tabs_swellable.svg<br/>🎯 Animation-ready SVG]
-O7[BWV000_note_heads.csv<br/>📊 SVG Noteheads Data]
-O8[BWV000_note_events.csv<br/>📊 MIDI Events Data]
-O9[BWV000_ties.csv<br/>📊 Ties Data]
-O10[BWV000_note_heads_squashed.csv<br/>📊 Squashed Noteheads Data]
+O2[BWV000.svg                       <br/>🎼 Main SVG Score]
+O3[BWV000_ly_one_line.svg           <br/>🎼 One-line SVG]
+O4[BWV000_ly_one_line.midi          <br/>🎵 MIDI Data]
+O5[BWV000_filtered.svg              <br/>🔄 Processed SVG]
+O6[BWV000_filtered_swellable.svg    <br/>🎯 Animation-ready SVG]
+O7[BWV000_note_heads.csv            <br/>📊 SVG Noteheads Data]
+O8[BWV000_note_events.csv           <br/>📊 MIDI Events Data]
+O9[BWV000_ties.csv                  <br/>📊 Ties Data]
+O10[BWV000_note_heads_squashed.csv  <br/>📊 Squashed Noteheads Data]
+O11[BWV000_ly_one_line_filtered.svg <br/>🔄 Filtered One-line SVG]
 
 %% ============================================================================
 %% EXPORT NODES
 %% ============================================================================
-E3[exports/BWV000.pdf<br/>📑 PDF Output]
-E1[exports/BWV000_optimized.svg<br/>🎨 Final Animated SVG]
-E2[exports/BWV000_json_notes.json<br/>🎵 Synchronized Animation Data]
+E3[exports/BWV000.pdf               <br/>📑 PDF Output]
+E1[exports/BWV000_optimized.svg     <br/>🎨 Final Animated SVG]
+E2[exports/BWV000_json_notes.json   <br/>🎵 Synchronized Animation Data]
 
 %% ============================================================================
 %% DEPENDENCY RELATIONSHIPS
@@ -82,6 +87,7 @@ T8 --> R8
 T9 --> R9
 T0 --> R0
 T11 --> R11
+T12 --> R12
 
 %% Runnable to output relationships
 R2 --> O2
@@ -91,17 +97,21 @@ R0 --> O9
 R7 --> O7
 R8 --> O8
 R11 --> O10
+R12 --> O11
 
-%% SVG processing chain
+%% SVG processing chain (main)
 O2 --> T4
 R4 --> O5
 O5 --> T5
 R5 --> O6
 O6 --> T6
 
-%% Data extraction parallel branches
-O3 --> T7
-O3 --> T0
+%% SVG processing chain (one-line)
+O3 --> T12
+
+%% Data extraction parallel branches (now from filtered one-line)
+O11 --> T7
+O11 --> T0
 O4 --> T8
 
 %% Squash tied noteheads step
@@ -127,9 +137,9 @@ classDef runnable fill:#fff3e0,stroke:#e65100,stroke-width:2px
 classDef export fill:#ffebee,stroke:#b71c1c,stroke-width:3px
 
 class I1,I2,I3 input
-class T1,T2,T3,T4,T5,T6,T7,T8,T9,T0,T10,T11 task
-class O2,O3,O4,O5,O6,O7,O8,O9,O10 output
-class R1,R2,R3,R4,R5,R6,R7,R8,R9,R0,R11 runnable
+class T1,T2,T3,T4,T5,T6,T7,T8,T9,T0,T10,T11,T12 task
+class O2,O3,O4,O5,O6,O7,O8,O9,O10,O11 output
+class R1,R2,R3,R4,R5,R6,R7,R8,R9,R0,R11,R12 runnable
 class E3,E1,E2 export
 
 %% ============================================================================

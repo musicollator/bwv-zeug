@@ -49,9 +49,10 @@
                      (cons (list current-bar moment-main moment-grace) bar-timing-data))
                (set! last-bar current-bar)))))
         
-        ((finalize engraver)
-         (let ((sorted-timings (sort bar-timing-data (lambda (a b) (< (car a) (car b))))))
-           (display (format #f "Collected LilyPond bar timings: ~a\n" sorted-timings))))))))
+        ; ((finalize engraver)
+        ; (let ((sorted-timings (sort bar-timing-data (lambda (a b) (< (car a) (car b))))))
+        ;   (display (format #f "Collected LilyPond bar timings: ~a\n" sorted-timings))))
+        ))))
 
 % Define the timing collector instance
 #(define Bar_timing_collector (make-bar-timing-collector))

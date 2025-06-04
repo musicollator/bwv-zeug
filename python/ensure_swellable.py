@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-svg_prepare_for_swell.py
+ensure_swellable.py
 
 SVG Animation Preparation Pipeline
 =================================
@@ -22,10 +22,6 @@ This script transforms it to:
 
 This restructuring enables smooth CSS animations on noteheads while preserving
 all musical cross-reference links needed for score interaction.
-
-Usage:
-    python svg_prepare_for_swell.py input.svg output.svg
-    python svg_prepare_for_swell.py  # Uses project context if available
 """
 
 import xml.etree.ElementTree as ET
@@ -256,48 +252,67 @@ def process_svg_file(input_path, output_path):
         return False
 
 # =============================================================================
-# MAIN FUNCTION
+# COMMAND LINE INTERFACE
 # =============================================================================
 
+def setup_argument_parser():
+    """Setup command line argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Prepare SVG for animation by restructuring DOM hierarchy",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python ensure_swellable.py -i score.svg -o score_swellable.svg
+  python ensure_swellable.py --input music.svg --output music_animated.svg
+        """
+    )
+    
+    parser.add_argument('-i', '--input', 
+                       required=True,
+                       help='Input SVG file path (required)')
+    
+    parser.add_argument('-o', '--output',
+                       required=True, 
+                       help='Output SVG file path (required)')
+    
+    return parser.parse_args()
+
 def main():
-    """Main function with project context support."""
+    """Main function with command line argument support."""
     
     print("🚀 SVG Animation Preparation Pipeline")
     print("=" * 45)
     
-    # Fix path resolution for _scripts_utils
-    import sys
-    from pathlib import Path
-    script_dir = Path(__file__).parent
-    sys.path.insert(0, str(script_dir))
+    # Parse arguments
+    args = setup_argument_parser()
     
-    try:
-        # Try to use project context system
-        from _scripts_utils import get_io_files
-        
-        input_file, output_file = get_io_files(
-            "Prepare SVG for animation by restructuring DOM hierarchy",
-            "{project}_no_hrefs_in_tabs.svg",
-            "{project}_no_hrefs_in_tabs_swellable.svg"
-        )
-        
-    except ImportError as e:
-        print("❌ FATAL: _scripts_utils.py not found in script directory")
-        print(f"   Looking in: {script_dir}")
-        print(f"   Import error: {e}")
-        print("   Cannot continue without utilities")
-        sys.exit(1)
+    input_file = args.input
+    output_file = args.output
+    
+    print(f"📄 Processing file:")
+    print(f"   Input: {input_file}")
+    print(f"   Output: {output_file}")
+    print()
     
     # Process the SVG file
     success = process_svg_file(input_file, output_file)
     
     if success:
         print("\n🎉 Processing complete - SVG ready for animation!")
-        sys.exit(0)
+        return 0
     else:
         print("\n💥 Processing failed")
-        sys.exit(1)
+        return 1
 
 if __name__ == '__main__':
-    main()
-
+    try:
+        exit_code = main()
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n⚠️  Interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

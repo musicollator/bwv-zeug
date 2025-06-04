@@ -180,8 +180,8 @@ def main():
 
             if midi_pitch_num != svg_pitch_num:
                 print(f"⚠️  Pitch mismatch at position {index}:")
-                print(f"    MIDI: '{midi_lilypond_pitch}' (MIDI number: {midi_row.midi})")
-                print(f"    SVG: '{svg_lilypond_pitch}'")
+                print(f"    midi_pitch_num: '{midi_pitch_num}' MIDI: '{midi_lilypond_pitch}' (MIDI number: {midi_row.midi})")
+                print(f"    svg_pitch_num : '{svg_pitch_num}' SVG: '{svg_lilypond_pitch}'")
                 print(f"    SVG href: {svg_row.href}")
                 mismatch_count += 1
                 
