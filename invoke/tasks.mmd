@@ -29,9 +29,9 @@ T12[filter_one_line]
 %% ============================================================================
 %% RUNNABLE NODES
 %% ============================================================================
-R1[docker run -v PWD:/work codello/lilypond:dev INCLUDES       BWV000.ly && mkdir -p exports && mv BWV000.pdf exports   <br/>🐳 LilyPond PDF]
-R2[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000.ly                                                <br/>🐳 LilyPond SVG]
-R3[docker run -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000_ly_one_line.ly                                    <br/>🐳 LilyPond One-line SVG, ready for extract ties, and MIDI]
+R1[docker run --rm -v PWD:/work codello/lilypond:dev INCLUDES       BWV000.ly && mkdir -p exports && mv BWV000.pdf exports   <br/>🐳 LilyPond PDF]
+R2[docker run --rm -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000.ly                                                <br/>🐳 LilyPond SVG]
+R3[docker run --rm -v PWD:/work codello/lilypond:dev INCLUDES --svg BWV000_ly_one_line.ly                                    <br/>🐳 LilyPond One-line SVG, ready for extract ties, and MIDI]
 R4[bwv_script:remove_unwanted_hrefs.py   -i BWV000.svg                                                  -o BWV000_filtered.svg              <br/>🔗 Remove unwanted hrefs]
 R5[bwv_script:ensure_swellable.py        -i BWV000_filtered.svg                                         -o BWV000_filtered_swellable.svg    <br/>🎯 Prepare for swell animation]
 R6[bwv_script:optimize.py                -i BWV000_filtered_swellable.svg                               -o exports/BWV000_optimized.svg     <br/>⚡ SVGO optimization]
