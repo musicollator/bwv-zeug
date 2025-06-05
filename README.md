@@ -26,7 +26,7 @@ The result is a synchronized dataset where every visual notehead in the score is
 
 The build system orchestrates the complete pipeline through Python Invoke tasks.
 
-**For current build commands and usage, see `tasks.mmd`** - the authoritative source for all available operations.
+**For current build commands and usage, see [`tasks.mmd`](invoke/tasks.mmd)** - the authoritative source for all available operations.
 
 Each BWV project can have its own configuration file (e.g., `bwv543.yaml`) to tune parameters like chord tolerance for optimal results.
 
