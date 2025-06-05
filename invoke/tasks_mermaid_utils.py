@@ -449,7 +449,7 @@ def get_status_file_info(mermaid_file):
 # =============================================================================
 
 if __name__ == "__main__":
-    if len(sys.argv) < 1:
+    if len(sys.argv) < 2:
         print("Usage: python tasks_mermaid_utils.py <mermaid_file.mmd>")
         sys.exit(1)
     
