@@ -4,20 +4,22 @@
 # 
 # Build script for all BWV projects
 # Processes each subdirectory starting with "bwv" (case-sensitive)
-# and runs the build pipeline, logging all output
+# and runs the provided build command, logging all output
 #
-# Usage: ./build_every_bwv.sh <build_command>
-# Example: ./build_every_bwv.sh "invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke"
+# Usage: ./build_every_bwv.sh "<full_build_command>"
+# Example: ./build_every_bwv.sh "invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke clean all"
 
 set -e  # Exit on any error
 
 # Check if build command was provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <build_command>"
+    echo "Usage: $0 '<full_build_command>'"
     echo ""
     echo "Examples:"
-    echo "  $0 'invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke'  # Full invoke command"
-    echo "  $0 make                                                                                       # If using make instead"
+    echo "  $0 'invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke clean all'"
+    echo "  $0 'invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke clean all && git status --short'"
+    echo "  $0 'make clean all'"
+    echo "  $0 'npm run build'"
     echo ""
     exit 1
 fi
@@ -48,8 +50,9 @@ echo ""
 
 # Test if the build command is available
 echo "🧪 Testing build command availability..."
-if ! command -v ${BUILD_CMD%% *} >/dev/null 2>&1; then
-    echo -e "${RED}❌ Build command '${BUILD_CMD%% *}' not found in PATH${NC}"
+FIRST_CMD=$(echo "$BUILD_CMD" | awk '{print $1}')
+if ! command -v "$FIRST_CMD" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Build command '$FIRST_CMD' not found in PATH${NC}"
     echo "   Make sure the command is installed and available"
     exit 1
 fi
@@ -78,7 +81,7 @@ FAILED_BUILDS=()
 for BWV_DIR in "${BWV_DIRS[@]}"; do
     BWV_NAME=$(basename "$BWV_DIR")
     
-    echo -e "${BLUE}🎵 Processing: $BWV_NAME${NC}"
+    echo -e "${BLUE}🎵 $BWV_NAME${NC}"
     echo "============================================="
     
     # Change to BWV directory
@@ -91,43 +94,29 @@ for BWV_DIR in "${BWV_DIRS[@]}"; do
     # Log the start of this build
     echo "" >> "$START_DIR/ALL.LOG"
     echo "========================================" >> "$START_DIR/ALL.LOG"
-    echo "🎵 Building: $BWV_NAME" >> "$START_DIR/ALL.LOG"
+    echo "🎵 $BWV_NAME" >> "$START_DIR/ALL.LOG"
     echo "📅 $(date)" >> "$START_DIR/ALL.LOG"
+    echo "🔨 Command: $BUILD_CMD" >> "$START_DIR/ALL.LOG"
     echo "========================================" >> "$START_DIR/ALL.LOG"
     
     echo "" >> "$START_DIR/ERR.LOG"
     echo "========================================" >> "$START_DIR/ERR.LOG"
-    echo "🎵 Building: $BWV_NAME (ERRORS)" >> "$START_DIR/ERR.LOG"
+    echo "🎵 $BWV_NAME (ERRORS)" >> "$START_DIR/ERR.LOG"
     echo "📅 $(date)" >> "$START_DIR/ERR.LOG"
+    echo "🔨 Command: $BUILD_CMD" >> "$START_DIR/ERR.LOG"
     echo "========================================" >> "$START_DIR/ERR.LOG"
     
-    # Run clean command with timeout
-    echo "   🧹 Running clean..."
-    if timeout 60 $BUILD_CMD clean >> "$START_DIR/ALL.LOG" 2>> "$START_DIR/ERR.LOG"; then
-        echo "   ✅ Clean completed"
-    elif [ $? -eq 124 ]; then
-        echo -e "${RED}   ⏰ Clean timed out (60s) for $BWV_NAME${NC}"
-        FAILED_BUILDS+=("$BWV_NAME (clean timeout)")
-        cd "$START_DIR"
-        continue
-    else
-        echo -e "${RED}   ❌ Clean failed for $BWV_NAME${NC}"
-        FAILED_BUILDS+=("$BWV_NAME (clean)")
-        cd "$START_DIR"
-        continue
-    fi
-    
-    # Run build command with timeout
-    echo "   🔨 Running build..."
-    if timeout 300 $BUILD_CMD all >> "$START_DIR/ALL.LOG" 2>> "$START_DIR/ERR.LOG"; then
+    # Run the build command with timeout
+    echo "   🔨 Running: $BUILD_CMD"
+    if timeout 300 bash -c "$BUILD_CMD" >> "$START_DIR/ALL.LOG" 2>> "$START_DIR/ERR.LOG"; then
         echo -e "${GREEN}   ✅ Build completed successfully${NC}"
         SUCCESSFUL_BUILDS+=("$BWV_NAME")
     elif [ $? -eq 124 ]; then
         echo -e "${RED}   ⏰ Build timed out (300s) for $BWV_NAME${NC}"
-        FAILED_BUILDS+=("$BWV_NAME (build timeout)")
+        FAILED_BUILDS+=("$BWV_NAME (timeout)")
     else
         echo -e "${RED}   ❌ Build failed${NC}"
-        FAILED_BUILDS+=("$BWV_NAME (build)")
+        FAILED_BUILDS+=("$BWV_NAME (failed)")
     fi
     
     # Return to starting directory
