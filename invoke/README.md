@@ -16,8 +16,10 @@ Automated task generation system for Bach score processing using Mermaid diagram
    python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
    ```
 
+   ```bash
    % alias b  
    b='invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke'
+   ```
 
 3. **Run tasks** (from a BWV project directory, bwv1006, bwv543, etc.):
    ```bash
