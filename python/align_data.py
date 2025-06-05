@@ -71,16 +71,6 @@ def make_json_serializable(obj):
         return float(obj)
     else:
         return obj
-    
-def make_json_serializable(obj):
-    """Convert numpy types to JSON-serializable Python types"""
-    import numpy as np
-    if isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    else:
-        return obj
 
 def main():
     """Main function with command line argument support."""
