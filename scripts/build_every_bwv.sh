@@ -18,8 +18,7 @@ if [ $# -eq 0 ]; then
     echo "Examples:"
     echo "  $0 'invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke clean all'"
     echo "  $0 'invoke --search-root /Users/christophe.thiebaud/github.com/musicollator/bwv-zeug/invoke clean all && git status --short'"
-    echo "  $0 'make clean all'"
-    echo "  $0 'npm run build'"
+    echo "  $0 'git add . && git commit -m "Rebuilt all" && git push'"
     echo ""
     exit 1
 fi
