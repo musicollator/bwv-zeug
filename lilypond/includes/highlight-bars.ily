@@ -17,7 +17,7 @@
              (let ((start (ly:make-stream-event
                           (ly:make-event-class 'staff-highlight-event)
                           (list (cons 'span-direction START)
-                                (cons 'color "#faf8f3")
+                                (cons 'color "#e7dfd0")
                                 (cons 'bar-number current-bar)))))
                (ly:broadcast (ly:context-event-source context) start))
              (set! last-bar current-bar))))))))
