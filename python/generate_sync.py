@@ -253,21 +253,33 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     # 2. Extract timing metadata
     meta = extract_meta(notes_data, config_data)
     
-    # 3. Process notes
+    # 3. Process notes - include channel information from JSON
     flow_items = []
     for note in notes_data:
         simplified_hrefs = [simplify_href(href) for href in note['hrefs']]
-        flow_items.append([note['on_tick'], note['off_tick'], simplified_hrefs])
+        
+        # Get channel from JSON (should be there already)
+        channel = note.get('channel', 0)  # Default to 0 if missing
+        
+        # New format: [start_tick, channel, end_tick, hrefs]
+        flow_items.append([note['on_tick'], channel, note['off_tick'], simplified_hrefs])
+        
+        # Debug: print first few notes to verify channel data
+        if len(flow_items) <= 3:
+            print(f"  Note: ticks {note['on_tick']}-{note['off_tick']}, channel {channel}, hrefs {simplified_hrefs}")
+    
+    print(f"Processed {len(flow_items)} notes with channel information")
     
     # 4. Extract and process bars from SVG
-    bars = extract_bars_from_svg(root, meta, config_data)  # Fixed: added config_data
+    bars = extract_bars_from_svg(root, meta, config_data)
     for bar in bars:
         flow_items.append([bar['tick'], None, bar['number'], 'bar'])
     
-    # 5. Sort flow: first by start tick, then bars before notes
+    # 5. Sort flow: first by start tick, then higher channels first, then bars before notes
     flow_items.sort(key=lambda x: (
-        x[0],                    # Primary: start tick
-        0 if len(x) > 3 else 1   # Secondary: bars (4 elements) before notes (3 elements)
+        x[0],                              # Primary: start tick
+        0 if len(x) == 4 and x[3] == 'bar' else 1,  # Secondary: bars before notes
+        -x[1] if len(x) == 4 and x[3] != 'bar' else 0  # Tertiary: higher channels first (for notes)
     ))    
     
     # 6. Generate outputs
@@ -276,20 +288,25 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
         'flow': flow_items
     }
     
-    # Write sync.yaml with compact formatting
+    # Write sync.yaml with proper meta structure and compact flow
     print(f"Writing {notes_output}...")
     with open(notes_output, 'w') as f:
+        # Write meta section properly indented
         f.write("meta:\n")
-        yaml.dump(meta, f, default_flow_style=False, indent=2)
+        for key, value in meta.items():
+            f.write(f"  {key}: {value}\n")
+        
         f.write("\nflow:\n")
         
-        # Write each flow item on one line
+        # Write each flow item on one line (compact format)
         for item in flow_items:
             # Format as compact YAML list
-            if len(item) == 3:  # Note
+            if len(item) == 4 and item[3] == 'bar':  # Bar: [tick, None, bar_number, 'bar']
+                f.write(f"- [{item[0]}, {item[1]}, {item[2]}, {item[3]}]\n")
+            elif len(item) == 4:  # Note: [start_tick, channel, end_tick, hrefs]
+                f.write(f"- [{item[0]}, {item[1]}, {item[2]}, {item[3]}]\n")
+            else:  # Legacy format (shouldn't happen now)
                 f.write(f"- [{item[0]}, {item[1]}, {item[2]}]\n")
-            else:  # Bar
-                f.write(f"- [{item[0]}, {item[1]}, {item[2]}, {item[3]}]\n")   
                  
     # Write cleaned SVG
     print(f"Writing {svg_output}...")
@@ -297,6 +314,18 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     tree.write(svg_output, encoding='utf-8', xml_declaration=True)
     
     print(f"✅ Generated {len(flow_items)} flow items ({len(notes_data)} notes, {len(bars)} bars)")
+    
+    # Debug: Show channel distribution
+    channel_counts = {}
+    for item in flow_items:
+        if len(item) == 4 and item[3] != 'bar':  # Note: [start_tick, channel, end_tick, hrefs]
+            channel = item[1]  # Channel is now at index 1
+            channel_counts[channel] = channel_counts.get(channel, 0) + 1
+    
+    if channel_counts:
+        print(f"📊 Channel distribution: {channel_counts}")
+    else:
+        print("⚠️  No channel data found in output")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate unified sync format')
