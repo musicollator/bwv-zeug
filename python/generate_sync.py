@@ -46,6 +46,35 @@ def collect_unique_moments(svg_root):
     
     return sorted(moments)
 
+def calculate_channel_stats(notes_data):
+    """Calculate min/max pitch and count for each channel"""
+    channel_stats = {}
+    
+    for note in notes_data:
+        channel = note.get('channel', 0)
+        pitch = note.get('pitch', 60)  # Default to middle C if missing
+        
+        if channel not in channel_stats:
+            channel_stats[channel] = {
+                'minPitch': pitch,
+                'maxPitch': pitch,
+                'count': 0
+            }
+        
+        stats = channel_stats[channel]
+        stats['minPitch'] = min(stats['minPitch'], pitch)
+        stats['maxPitch'] = max(stats['maxPitch'], pitch)
+        stats['count'] += 1
+    
+    # Log channel stats for debugging
+    print(f"📊 Channel statistics:")
+    for channel in sorted(channel_stats.keys()):
+        stats = channel_stats[channel]
+        avg_pitch = (stats['minPitch'] + stats['maxPitch']) / 2
+        print(f"  Channel {channel}: {stats['minPitch']}-{stats['maxPitch']} (avg: {avg_pitch:.1f}), {stats['count']} notes")
+    
+    return channel_stats
+
 def extract_meta(notes_data, config_data):
     """Extract metadata from notes and config"""
     # Get tick range from notes
@@ -60,6 +89,9 @@ def extract_meta(notes_data, config_data):
     total_duration = config_data['musicalStructure']['totalDurationSeconds']
     tick_to_second_ratio = total_duration / (max_tick - min_tick)
     
+    # Calculate channel statistics
+    channel_stats = calculate_channel_stats(notes_data)
+    
     return {
         'totalMeasures': config_data['musicalStructure']['totalMeasures'],
         'minTick': min_tick,
@@ -67,7 +99,8 @@ def extract_meta(notes_data, config_data):
         'minMoment': 0,  # Will be updated from SVG
         'maxMoment': config_data['musicalStructure']['totalMeasures'],  # Rough estimate
         'musicStartSeconds': 0.0,  # Will be refined
-        'tickToSecondRatio': tick_to_second_ratio
+        'tickToSecondRatio': tick_to_second_ratio,
+        'channels': channel_stats
     }
 
 def extract_bars_from_svg(svg_root, meta, config_data):
@@ -250,7 +283,7 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     tree = ET.parse(svg_input)
     root = tree.getroot()
     
-    # 2. Extract timing metadata
+    # 2. Extract timing metadata (now includes channel stats)
     meta = extract_meta(notes_data, config_data)
     
     # 3. Process notes - include channel information from JSON
@@ -294,7 +327,16 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
         # Write meta section properly indented
         f.write("meta:\n")
         for key, value in meta.items():
-            f.write(f"  {key}: {value}\n")
+            if key == 'channels':
+                # Write channels section with proper indentation
+                f.write(f"  {key}:\n")
+                for channel_id, stats in value.items():
+                    f.write(f"    {channel_id}:\n")
+                    f.write(f"      minPitch: {stats['minPitch']}\n")
+                    f.write(f"      maxPitch: {stats['maxPitch']}\n")
+                    f.write(f"      count: {stats['count']}\n")
+            else:
+                f.write(f"  {key}: {value}\n")
         
         f.write("\nflow:\n")
         
@@ -323,7 +365,7 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
             channel_counts[channel] = channel_counts.get(channel, 0) + 1
     
     if channel_counts:
-        print(f"📊 Channel distribution: {channel_counts}")
+        print(f"📊 Channel distribution in flow: {channel_counts}")
     else:
         print("⚠️  No channel data found in output")
 
