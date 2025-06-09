@@ -332,8 +332,65 @@ def status(c):
             print(f"   ❌ {{name:<18}}: {{filename:<75}} (missing)")"""
 
 def generate_clean_task(listener):
-    """Generate the clean task based on parsed mermaid content."""
-    # Get all target files (outputs and exports)
+    """Generate the clean task that only deletes intermediate files (not exports)."""
+    # Get intermediate files (outputs and generated inputs, but NOT exports)
+    target_files = []
+    
+    # Get output nodes (intermediate files)
+    output_nodes = get_nodes_by_type(listener.nodes, 'O')
+    for node in output_nodes:
+        filename = node['content'].replace('BWV000', '{PROJECT_NAME}')
+        target_files.append(filename)
+    
+    # Get generated input files (like ties.csv)
+    input_nodes = get_nodes_by_type(listener.nodes, 'I')
+    for node in input_nodes:
+        filename = node['content'].replace('BWV000', '{PROJECT_NAME}')
+        # Only include generated input files
+        if filename.endswith('.csv') or 'generated' in filename.lower():
+            target_files.append(filename)
+    
+    # Generate target_files list entries
+    target_entries = []
+    for filename in target_files:
+        target_entries.append(f"        f'{filename}',")
+    target_list = '\n'.join(target_entries)
+    
+    return f"""@task
+def clean(c):
+    \"\"\"Delete intermediate files (preserves final exports).\"\"\"
+    print(f"🎼 Detected project: {{PROJECT_NAME}}")
+    
+    # Intermediate files extracted from mermaid diagram (excludes exports)
+    target_files = [
+{target_list}
+    ]
+    
+    # Delete files
+    deleted = []
+    for filename in target_files:
+        path = Path(filename)
+        if path.exists():
+            path.unlink()
+            deleted.append(path.name)
+    
+    print("🗑️ Deleted intermediate files:", end="")
+    if deleted:
+        print()
+        for d in deleted:
+            print(f"   └── {{d}}")
+    else:
+        print(" ∅")
+    
+    # Also clean build cache
+    cache_file = Path('.build_cache.json')
+    if cache_file.exists():
+        cache_file.unlink()
+        print("🗑️ Deleted build cache")"""
+
+def generate_clean_all_task(listener):
+    """Generate the clean_all task that deletes all generated files including exports."""
+    # Get all target files (outputs, exports, and generated inputs)
     target_files = []
     
     # Get export nodes
@@ -363,11 +420,11 @@ def generate_clean_task(listener):
     target_list = '\n'.join(target_entries)
     
     return f"""@task
-def clean(c):
-    \"\"\"Delete all generated output files.\"\"\"
+def clean_all(c):
+    \"\"\"Delete all generated files including final exports.\"\"\"
     print(f"🎼 Detected project: {{PROJECT_NAME}}")
     
-    # Target files extracted from mermaid diagram
+    # All target files extracted from mermaid diagram
     target_files = [
 {target_list}
     ]
@@ -380,7 +437,7 @@ def clean(c):
             path.unlink()
             deleted.append(path.name)
     
-    print("🗑️ Deleted:", end="")
+    print("🗑️ Deleted all generated files:", end="")
     if deleted:
         print()
         for d in deleted:
@@ -438,7 +495,8 @@ def info(c):
     print(f"🤖 Generated: tasks_generated.py")
     print(f"📋 Available tasks:")
     print("   • status     - Show file status")
-    print("   • clean      - Delete outputs") 
+    print("   • clean      - Delete intermediate files") 
+    print("   • clean_all  - Delete all generated files")
     print("   • all        - Build all final outputs")
     print("   • info       - This information")
     print("   🔧 Pipeline tasks (from tasks.mmd):")
@@ -585,6 +643,7 @@ def generate_tasks_file(listener):
     # Get all meta-tasks
     status_task = generate_status_task(listener)
     clean_task = generate_clean_task(listener)
+    clean_all_task = generate_clean_all_task(listener)
     all_task = generate_all_task(listener)
     info_task = generate_info_task(listener)
     
@@ -598,6 +657,8 @@ def generate_tasks_file(listener):
 {status_task}
 
 {clean_task}
+
+{clean_all_task}
 
 {all_task if all_task else ""}
 
@@ -666,6 +727,7 @@ def generate_meta_tasks(mermaid_file):
         # Generate all meta-tasks
         status_task = generate_status_task(listener)
         clean_task = generate_clean_task(listener)
+        clean_all_task = generate_clean_all_task(listener)
         all_task = generate_all_task(listener)
         info_task = generate_info_task(listener)
         
@@ -676,6 +738,9 @@ def generate_meta_tasks(mermaid_file):
 
 
 {clean_task}
+
+
+{clean_all_task}
 
 
 {all_task}
