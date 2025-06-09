@@ -13,7 +13,8 @@ files:
   
 musicalStructure:
   totalDurationSeconds: 7.0
-  totalBars: 4
+  totalMeasures: 4
+  lastMeasureDuration: 1/4
   visualLeadTimeSeconds: 0.2  
 
 # Example YAML structure for measure highlighters in bwv1006.config.yaml
