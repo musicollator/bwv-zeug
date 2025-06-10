@@ -44,6 +44,18 @@ def extract_note_intervals(midi_path):
     with their original MIDI tick timing preserved. The timing synchronization
     is left to be handled in real-time by JavaScript/frontend code.
     
+    CORE ALGORITHM: Note Stack for Overlapping Notes
+    ================================================
+    Uses a FIFO stack per pitch to handle overlapping notes correctly:
+    
+    Example: Piano with sustain pedal
+    Time 0: C4 pressed    → Stack: [(0, channel)]
+    Time 100: C4 pressed  → Stack: [(0, channel), (100, channel)]  
+    Time 200: C4 released → Pop (0), create note (0-200)
+    Time 300: C4 released → Pop (100), create note (100-300)
+    
+    Without the stack, note-offs would match incorrect note-ons.
+    
     Args:
         midi_path (str): Path to the MIDI file to process
         
@@ -56,13 +68,6 @@ def extract_note_intervals(midi_path):
                 - off_tick: End time in MIDI ticks (int) 
                 - channel: MIDI channel number
             int: ticks_per_beat from the MIDI file
-            
-    Algorithm Details:
-    - Uses a note stack to handle overlapping notes of the same pitch
-    - Preserves original MIDI tick timing without conversion
-    - Handles both note_on (velocity > 0) and note_off events
-    - Treats note_on with velocity=0 as note_off (MIDI standard)
-    - Converts MIDI pitches to LilyPond notation for score alignment
     """
     
     print(f"🎵 Loading MIDI file: {midi_path}")
@@ -85,12 +90,11 @@ def extract_note_intervals(midi_path):
     print("🔍 Analyzing MIDI events...")
     
     # =================================================================
-    # STEP 2: PROCESS ALL MIDI MESSAGES SEQUENTIALLY  
+    # STEP 2: CONVERT DELTA TIMES TO ABSOLUTE TIMES AND COLLECT MESSAGES
     # =================================================================
     
-    # =================================================================
-    # STEP 2: PROCESS ALL MIDI MESSAGES SEQUENTIALLY  
-    # =================================================================
+    # CRITICAL: MIDI stores relative timing (deltas), but we need absolute timing
+    # for chronological processing across multiple tracks
     
     # Collect all messages from all tracks with their absolute tick times
     all_messages = []
@@ -113,6 +117,10 @@ def extract_note_intervals(midi_path):
     
     print(f"   🎵 Processing {len(all_messages)} note messages from {len(midi_file.tracks)} tracks")
     
+    # =================================================================
+    # STEP 3: PROCESS MESSAGES WITH NOTE STACK ALGORITHM
+    # =================================================================
+    
     # Process messages in chronological order
     for abs_tick, message in all_messages:
         # Handle note start events
@@ -126,7 +134,7 @@ def extract_note_intervals(midi_path):
         elif message.type in ('note_off', 'note_on') and message.velocity == 0:
             # Pop matching note from stack (FIFO order for overlapping notes)
             if note_stack.get(message.note):
-                start_tick, channel = note_stack[message.note].pop(0)
+                start_tick, channel = note_stack[message.note].pop(0)  # FIFO: first in, first out
                 
                 # Create completed note event with original MIDI timing
                 note_event = {
@@ -158,7 +166,7 @@ def extract_note_intervals(midi_path):
             print(f"   ✅ All tick values are integers")
     
     # =================================================================
-    # STEP 3: CONVERT MIDI PITCHES TO LILYPOND NOTATION
+    # STEP 4: CONVERT MIDI PITCHES TO LILYPOND NOTATION
     # =================================================================
     
     print("🎼 Converting MIDI pitches to LilyPond notation...")
@@ -168,7 +176,7 @@ def extract_note_intervals(midi_path):
         note_event["pitch"] = midi_pitch_to_lilypond(note_event["midi"])
     
     # =================================================================
-    # STEP 4: SORT AND ORGANIZE RESULTS
+    # STEP 5: SORT AND ORGANIZE RESULTS
     # =================================================================
     
     # Convert to DataFrame for easier manipulation and export
@@ -287,7 +295,7 @@ def main():
         
         print(f"✅ Export complete!")
         print(f"   📁 Note data: {output_file_path}")
-        ## print(f"   📁 Metadata: {metadata_file}")
+        ## print(f"   📁 Metadata: {metadata_file}")
         print(f"   🎵 Notes: {total_notes}")
         print(f"   ⏱️  Duration: {max_tick} ticks")
         print(f"   🎯 Resolution: {ticks_per_beat} ticks per beat")

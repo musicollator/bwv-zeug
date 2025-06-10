@@ -2,6 +2,26 @@
 """
 extract_ties.py - Extract tie relationships from SVG files
 
+SVG Tie Relationship Extractor
+==============================
+
+This script extracts musical tie relationships from LilyPond-generated SVG files.
+Ties connect notes of the same pitch across time, indicating sustained sound without
+re-articulation. These relationships are crucial for accurate MIDI playback timing.
+
+Key Features:
+- Extracts tie start/end relationships from SVG grob attributes
+- Validates ties go forward in musical time (essential for proper sequencing)
+- Handles both modern href and legacy xlink:href formats
+- Merges with existing tie data while removing invalid relationships
+
+MUSICAL CONTEXT:
+A tie connects two noteheads of the same pitch where the second note extends
+the first note's duration without re-striking. In MIDI terms, this means the
+first note's off-time extends to cover the second note's duration.
+
+Example: C quarter note tied to C half note = C dotted half note in playback
+
 Updated version that works with both modern href and legacy xlink:href formats.
 """
 
@@ -14,7 +34,16 @@ from pathlib import Path
 
 def extract_ties_from_svg(svg_file_path):
     """
-    Extract tie relationships from an SVG file using the new tie grob approach.
+    Extract tie relationships from SVG using LilyPond's tie grob attributes.
+    
+    ALGORITHM: SVG Grob-Based Tie Extraction
+    ========================================
+    LilyPond embeds tie information directly in SVG elements using custom attributes:
+    - data-tie-role: "start", "end", or "both" (indicates tie participation)
+    - data-tie-to: "#element-id" (points to the target notehead)
+    
+    This approach is more reliable than geometric analysis since it uses
+    LilyPond's internal knowledge of musical relationships.
     """
     print(f"📖 Reading SVG file: {svg_file_path}")
     
@@ -85,9 +114,19 @@ def is_valid_forward_tie(start_href, end_href):
     """
     Validate that a tie goes forward in musical time.
     
-    Rules for valid ties:
-    1. End note must be on a line number GREATER than start note line number
-    2. If on the same line, end note must be at a column number GREATER than start note column
+    CRITICAL ALGORITHM: Musical Time Validation
+    ===========================================
+    Ties must connect notes in chronological order (forward in time).
+    This validation prevents malformed ties that would break MIDI sequencing.
+    
+    Validation Rules:
+    1. End note must be on a line number GREATER than start note line
+    2. If same line, end note must be at column GREATER than start note
+    
+    Why This Matters:
+    - MIDI playback depends on chronological ordering
+    - Backward ties would create impossible timing relationships
+    - Same-position ties would create zero-duration notes
     
     Args:
         start_href (str): Starting notehead href (e.g., "file.ly:10:4:5")
@@ -133,10 +172,16 @@ def find_element_by_id(root, element_id):
 
 def find_element_href(element):
     """
-    Find the href attribute for an element, supporting both modern and legacy formats.
+    Find href attribute supporting both modern and legacy SVG formats.
     
-    This function searches for href attributes in both modern (href) and legacy 
-    (xlink:href) formats, as SVG files may use either depending on processing.
+    COMPATIBILITY ALGORITHM: Dual Format Support
+    ============================================
+    LilyPond SVG output varies between versions:
+    - Modern: href="textedit://..." 
+    - Legacy: xlink:href="textedit://..."
+    
+    This function checks both formats to ensure compatibility across
+    different LilyPond versions and processing pipelines.
     """
     # Check if element itself has an href (modern format)
     href = element.get('href')
