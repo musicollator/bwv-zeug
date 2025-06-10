@@ -264,6 +264,37 @@ def clean_svg(svg_root):
     
     print(f"Successfully processed {len(elements_to_process)} note elements")
     
+    # === NEW: MOVE ALL NOTE HEADS TO END (RENDER ON TOP) ===
+    # Rebuild parent map after coalescing changes
+    parent_map = {c: p for p in svg_root.iter() for c in p}
+    
+    # Find all note heads (path elements with data-ref)
+    note_heads = []
+    for path in svg_root.findall('.//path[@data-ref]'):
+        parent = parent_map.get(path)
+        if parent is not None:
+            note_heads.append((path, parent))
+    
+    print(f"Moving {len(note_heads)} note heads to end of their parents for proper z-order")
+    
+    # Group by parent to move all children of same parent efficiently
+    parents_to_update = {}
+    for note_head, parent in note_heads:
+        if parent not in parents_to_update:
+            parents_to_update[parent] = []
+        parents_to_update[parent].append(note_head)
+    
+    # Move note heads to end of each parent
+    for parent, note_head_list in parents_to_update.items():
+        for note_head in note_head_list:
+            # Remove from current position
+            parent.remove(note_head)
+            # Append to end (renders on top)
+            parent.append(note_head)
+    
+    print(f"Successfully reordered note heads in {len(parents_to_update)} parent containers")
+    # === END NEW SECTION ===
+    
     # Remove fill="currentColor" from all remaining elements
     for elem in svg_root.findall('.//*[@fill="currentColor"]'):
         del elem.attrib['fill']
