@@ -29,24 +29,24 @@ Automated task generation system for Bach score processing using Mermaid diagram
 ## Files
 
 ### Source Files (commit to git)
-- `MermaidPipelineLexer.g4` - ANTLR lexer grammar with whitespace preservation
-- `MermaidPipelineParser.g4` - ANTLR parser grammar
-- `tasks.mmd` - Mermaid diagram defining the build pipeline
-- `tasks_mermaid_utils.py` - Parser and task generator
+- `antlr/build_antlr.sh` - ANTLR build script
+- `antlr/MermaidPipelineLexer.g4` - ANTLR lexer grammar with whitespace preservation
+- `antlr/MermaidPipelineParser.g4` - ANTLR parser grammar
+- `tasks_mermaid_generator.py` - Parser and task generator
 - `tasks_utils.py` - Task utilities and smart caching system
+- `tasks.mmd` - Mermaid diagram defining the build pipeline
 - `tasks.py` - Main task file (includes generated tasks)
-- `build_antlr.sh` - ANTLR build script
 
 ### Generated Files (don't commit)
-- `MermaidPipeline*.py` - Generated ANTLR parsers
+- `antlr/MermaidPipeline*.py` - Generated ANTLR parsers
+- `antlr/.antlr/` - ANTLR cache directory
 - `tasks_generated.py` - Generated Invoke tasks (imported by tasks.py)
-- `.antlr/` - ANTLR cache directory
-- `.build_cache.json` - Task build cache
+- `.build_cache.json` - Task build cache 
 
 ## Workflow
 
 1. **Edit pipeline**: Modify `tasks.mmd` with new tasks/dependencies
-2. **Regenerate tasks**: `python tasks_mermaid_utils.py tasks.mmd --generate-tasks`
+2. **Regenerate tasks**: `python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py`
 3. **Use tasks**: `invoke <task_name>` (tasks.py imports generated tasks)
 
 ## Features
