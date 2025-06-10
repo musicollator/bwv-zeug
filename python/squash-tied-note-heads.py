@@ -17,9 +17,15 @@ Process:
 1. Load SVG noteheads CSV and ties relationships CSV
 2. Identify all secondary (tied-to) noteheads from ties data
 3. For each primary notehead, collect all tied secondary hrefs
-4. Squash duplicate noteheads (same snippet, x, y) by merging hrefs
+4. Optionally squash duplicate noteheads (same snippet, x, y) by merging hrefs
 5. Filter SVG noteheads to keep only primaries, adding tied_hrefs column
 6. Export squashed noteheads CSV with embedded tie group information (preserving order)
+
+Configuration System:
+- no-duplicates can be specified via CLI argument (-nd/--no-duplicates)
+- If no CLI no-duplicates provided, looks for noDuplicates in project-specific YAML config
+- Falls back to default no-duplicates of true if no config found
+- This allows per-project duplicate handling without complicating the build system
 
 Input Files Required:
 - SVG noteheads CSV (with all noteheads including tied ones, pre-sorted with tolerance)
@@ -34,7 +40,54 @@ import pandas as pd
 import argparse
 import sys
 import os
-from _scripts_utils import save_dataframe_with_lilypond_csv
+from pathlib import Path
+from _scripts_utils import save_dataframe_with_lilypond_csv, get_project_name
+
+# =============================================================================
+# PROJECT CONFIGURATION LOADING
+# =============================================================================
+
+def load_project_no_duplicates():
+    """
+    Load no-duplicates configuration from project-specific YAML file.
+    
+    This function implements a graceful configuration loading system:
+    1. Uses the existing get_project_name() from _scripts_utils
+    2. Looks for PROJECT_NAME.yaml in the current directory
+    3. Extracts noDuplicates value from YAML if file exists
+    4. Falls back to default no-duplicates of True if no config or errors
+    
+    The YAML file format expected:
+        noDuplicates: false
+        # Other project settings can be added here
+    
+    Returns:
+        bool: Whether to remove duplicate noteheads (default: True)
+    """
+    project_name = get_project_name()
+    config_file = Path(f"{project_name}.yaml")
+    
+    print(f"🔍 Looking for project config: {config_file}")
+    
+    if config_file.exists():
+        try:
+            import yaml
+            print(f"📄 Loading config from: {config_file}")
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+                no_duplicates = config.get('noDuplicates', True)
+                print(f"⚙️  Using noDuplicates from config: {no_duplicates}")
+                return no_duplicates
+        except ImportError:
+            print(f"⚠️  Warning: PyYAML not installed, cannot read {config_file}")
+            print(f"   Install with: pip install PyYAML")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load {config_file}: {e}")
+            print(f"   Using default noDuplicates")
+    else:
+        print(f"📝 No config file found, using default noDuplicates")
+    
+    return True  # Default no-duplicates
 
 def setup_argument_parser():
     """Setup command line argument parser."""
@@ -43,8 +96,23 @@ def setup_argument_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Use automatic duplicate handling from project config:
   python squash-tied-note-heads.py -i noteheads.csv -t ties.csv -o squashed_noteheads.csv
-  python squash-tied-note-heads.py --input score_noteheads.csv --ties score_ties.csv --output score_squashed.csv
+  
+  # Override to disable duplicate squashing:
+  python squash-tied-note-heads.py -i noteheads.csv -t ties.csv -o squashed_noteheads.csv --no-duplicates
+  
+  # Enable duplicate squashing explicitly:
+  python squash-tied-note-heads.py -i noteheads.csv -t ties.csv -o squashed_noteheads.csv -nd
+
+Configuration Files:
+  Create PROJECT_NAME.yaml in the working directory to set project-specific duplicate handling:
+  
+  # Example bwv659.yaml:
+  noDuplicates: false
+  
+  # Example bwv543.yaml:
+  noDuplicates: true
         """
     )
     
@@ -59,6 +127,12 @@ Examples:
     parser.add_argument('-o', '--output',
                        required=True, 
                        help='Output squashed SVG noteheads CSV file path (required)')
+    
+    parser.add_argument('-nd', '--no-duplicates',
+                       action='store_true',
+                       default=None,  # None means "auto-detect from config"
+                       help='Remove duplicate noteheads at same position '
+                            '(default: auto-detect from project config or true)')
     
     return parser.parse_args()
 
@@ -117,9 +191,20 @@ def main():
     ties_csv = args.ties
     output_csv = args.output
     
+    # CONFIGURATION-AWARE NO-DUPLICATES LOADING
+    # Priority: CLI argument > project config > default
+    if args.no_duplicates is not None:
+        # Explicit no-duplicates provided via CLI - use it
+        no_duplicates = args.no_duplicates
+        print(f"⚙️  Using no-duplicates from CLI argument: {no_duplicates}")
+    else:
+        # No CLI no-duplicates - check project configuration
+        no_duplicates = load_project_no_duplicates()
+    
     print(f"📄 Input SVG noteheads: {svg_csv}")
     print(f"🔗 Input ties: {ties_csv}")
     print(f"📊 Output squashed noteheads: {output_csv}")
+    print(f"🔄 Remove duplicates: {no_duplicates}")
     print()
     
     try:
@@ -224,66 +309,70 @@ def main():
         print(f"   🔗 {total_tied_hrefs} total secondary hrefs embedded")
 
         # =================================================================
-        # STEP 4: SQUASH DUPLICATE NOTEHEADS (SAME POSITION & PITCH)
+        # STEP 4: OPTIONALLY SQUASH DUPLICATE NOTEHEADS (SAME POSITION & PITCH)
         # =================================================================
 
-        print("🔄 Squashing duplicate noteheads with same pitch and position...")
-        
-        # Find duplicate groups by (snippet, x, y)
-        primary_noteheads['group_key'] = (
-            primary_noteheads['snippet'].astype(str) + '|' + 
-            primary_noteheads['x'].round(3).astype(str) + '|' + 
-            primary_noteheads['y'].round(3).astype(str)
-        )
-        
         duplicates_squashed = 0
-        rows_to_drop = []
         
-        # Process each group
-        for group_key in primary_noteheads['group_key'].unique():
-            group_rows = primary_noteheads[primary_noteheads['group_key'] == group_key]
+        if no_duplicates:
+            print("🔄 Squashing duplicate noteheads with same pitch and position...")
             
-            if len(group_rows) > 1:
-                # Multiple noteheads at same position - squash them
-                duplicates_squashed += len(group_rows) - 1
+            # Find duplicate groups by (snippet, x, y)
+            primary_noteheads['group_key'] = (
+                primary_noteheads['snippet'].astype(str) + '|' + 
+                primary_noteheads['x'].round(3).astype(str) + '|' + 
+                primary_noteheads['y'].round(3).astype(str)
+            )
+            
+            rows_to_drop = []
+            
+            # Process each group
+            for group_key in primary_noteheads['group_key'].unique():
+                group_rows = primary_noteheads[primary_noteheads['group_key'] == group_key]
                 
-                # Get the first occurrence (primary)
-                primary_idx = group_rows.index[0]
-                duplicate_indices = group_rows.index[1:]
-                
-                # Collect duplicate hrefs
-                duplicate_hrefs = group_rows.iloc[1:]['href'].tolist()
-                
-                # Merge with existing tied_hrefs
-                existing_tied = primary_noteheads.loc[primary_idx, 'tied_hrefs']
-                if pd.isna(existing_tied) or existing_tied == "":
-                    combined_tied = "|".join(duplicate_hrefs)
-                else:
-                    combined_tied = existing_tied + "|" + "|".join(duplicate_hrefs)
-                
-                # Update the primary row
-                primary_noteheads.loc[primary_idx, 'tied_hrefs'] = combined_tied
-                
-                # Mark duplicate rows for removal
-                rows_to_drop.extend(duplicate_indices)
-                
-                snippet = group_rows.iloc[0]['snippet']
-                x = group_rows.iloc[0]['x']
-                y = group_rows.iloc[0]['y']
-                print(f"   🔄 Squashed {len(group_rows)} '{snippet}' notes at ({x:.1f}, {y:.1f})")
-        
-        # Remove duplicate rows while preserving order
-        if rows_to_drop:
-            primary_noteheads = primary_noteheads.drop(rows_to_drop).reset_index(drop=True)
-        
-        # Clean up temporary column
-        primary_noteheads = primary_noteheads.drop('group_key', axis=1)
-        
-        if duplicates_squashed > 0:
-            print(f"   📊 Squashed {duplicates_squashed} duplicate noteheads")
-            print(f"   ✅ Final count: {len(primary_noteheads)} unique notes")
+                if len(group_rows) > 1:
+                    # Multiple noteheads at same position - squash them
+                    duplicates_squashed += len(group_rows) - 1
+                    
+                    # Get the first occurrence (primary)
+                    primary_idx = group_rows.index[0]
+                    duplicate_indices = group_rows.index[1:]
+                    
+                    # Collect duplicate hrefs
+                    duplicate_hrefs = group_rows.iloc[1:]['href'].tolist()
+                    
+                    # Merge with existing tied_hrefs
+                    existing_tied = primary_noteheads.loc[primary_idx, 'tied_hrefs']
+                    if pd.isna(existing_tied) or existing_tied == "":
+                        combined_tied = "|".join(duplicate_hrefs)
+                    else:
+                        combined_tied = existing_tied + "|" + "|".join(duplicate_hrefs)
+                    
+                    # Update the primary row
+                    primary_noteheads.loc[primary_idx, 'tied_hrefs'] = combined_tied
+                    
+                    # Mark duplicate rows for removal
+                    rows_to_drop.extend(duplicate_indices)
+                    
+                    snippet = group_rows.iloc[0]['snippet']
+                    x = group_rows.iloc[0]['x']
+                    y = group_rows.iloc[0]['y']
+                    print(f"   🔄 Squashed {len(group_rows)} '{snippet}' notes at ({x:.1f}, {y:.1f})")
+            
+            # Remove duplicate rows while preserving order
+            if rows_to_drop:
+                primary_noteheads = primary_noteheads.drop(rows_to_drop).reset_index(drop=True)
+            
+            # Clean up temporary column
+            primary_noteheads = primary_noteheads.drop('group_key', axis=1)
+            
+            if duplicates_squashed > 0:
+                print(f"   📊 Squashed {duplicates_squashed} duplicate noteheads")
+                print(f"   ✅ Final count: {len(primary_noteheads)} unique notes")
+            else:
+                print(f"   ✅ No duplicate noteheads found")
         else:
-            print(f"   ✅ No duplicate noteheads found")
+            print("⏭️  Skipping duplicate squashing (disabled by configuration)")
 
         # =================================================================
         # PRESERVE ORDERING (NO RE-SORTING)
@@ -323,6 +412,8 @@ def main():
             print(f"   📏 Coordinate range: {x_range:.1f} x {y_range:.1f}")
             print(f"   🔗 Notes with ties: {tied_notes_count}")
             print(f"   📊 Total embedded secondaries: {total_tied_hrefs}")
+            if no_duplicates and duplicates_squashed > 0:
+                print(f"   🔄 Duplicates squashed: {duplicates_squashed}")
             print(f"   🎯 Order preserved from extract_note_heads.py")
             
             # Show some examples of tie groups
@@ -336,9 +427,20 @@ def main():
             print(f"⚠️  Warning: No noteheads remaining after processing!")
 
         print()
-        print("🎉 Tie squashing and duplicate removal completed successfully!")
+        print("🎉 Tie squashing and optional duplicate removal completed successfully!")
         print("🎯 Ready for simplified MIDI-to-SVG alignment with preserved chord grouping")
-        print("📝 Note: Duplicate noteheads at same position are merged into tied_hrefs")
+        if no_duplicates:
+            print("📝 Note: Duplicate noteheads at same position were merged into tied_hrefs")
+        else:
+            print("📝 Note: Duplicate noteheads were preserved (duplicate squashing disabled)")
+            
+        # Configuration guidance for user
+        if args.no_duplicates is None:
+            project_name = get_project_name()
+            print(f"\n💡 Configuration tip:")
+            print(f"   To lock in this duplicate handling ({no_duplicates}) for project {project_name}:")
+            print(f"   Create {project_name}.yaml with content:")
+            print(f"   noDuplicates: {no_duplicates}")
 
     except FileNotFoundError as e:
         print(f"❌ File error: {e}")

@@ -22,3 +22,5 @@ tasks_generated.py
 .DS_Store
 
 /invoke/test/tasks.py
+
+.DS_Store
