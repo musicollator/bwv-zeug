@@ -32,43 +32,14 @@ Each BWV project can have its own configuration file (e.g., `bwv543.yaml`) to tu
 
 ## The Pipeline
 
-The complete "usine à gaz" consists of several interconnected processing stages:
+**For complete workflow documentation, see [`invoke/TASKS.README.md`](invoke/TASKS.README.md)**
 
-### 1. Score Generation (`lilypond/`)
-- LilyPond templates and includes for consistent Bach score rendering
-- Generates SVG files with embedded cross-references to source notation
-- Produces MIDI files with precise timing information
-
-### 2. Visual Processing (`python/extract_note_heads.py`)
-- Parses LilyPond-generated SVG to locate clickable notehead elements
-- Extracts pitch information by following href links back to source `.ly` files
-- Groups simultaneous notes (chords) using configurable x-coordinate tolerance
-- Sorts noteheads by visual appearance (left-to-right, top-to-bottom)
-- Outputs CSV with format: `snippet,href,x,y`
-
-### 3. Temporal Processing (`python/extract_note_events.py`)
-- Processes MIDI files to extract note events with precise timing
-- Handles multi-channel/multi-voice compositions
-- Converts timing to tick-based format for accuracy
-- Outputs CSV with format: `pitch,midi,channel,on_tick,off_tick`
-
-### 4. Tie Resolution (`python/squash-tied-note-heads.py`)
-- Identifies tied note groups in the SVG data
-- Removes secondary noteheads from tied sequences
-- Embeds tie group information in primary noteheads
-- Preserves visual-temporal relationships for tied notes
-
-### 5. Data Alignment (`python/align_data.py`)
-- Synchronizes MIDI timing data with SVG notehead positions
-- Performs pitch verification to ensure proper alignment
-- Handles tolerance-based ordering from previous pipeline stages
-- Generates final JSON dataset with complete notehead-to-timing mapping
-
-### 6. Configuration & Utilities
-- **Project-specific tolerance settings** via YAML configuration files
-- **Build orchestration** through Python Invoke tasks
-- **LilyPond notation utilities** for pitch conversion and CSV handling
-- **Quality assurance** with alignment verification and mismatch detection
+The processing pipeline transforms LilyPond scores through multiple stages:
+- LilyPond compilation (PDF, SVG, MIDI generation)
+- SVG optimization for web animation
+- Data extraction (noteheads, ties, MIDI events)
+- MIDI-SVG alignment and synchronization
+- Final sync data generation
 
 ## Configuration
 
