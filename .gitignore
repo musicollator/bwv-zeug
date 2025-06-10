@@ -20,3 +20,5 @@ tasks_generated.py
 *.pdf
 
 .DS_Store
+
+/invoke/test/tasks.py

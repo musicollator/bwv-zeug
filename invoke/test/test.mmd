@@ -1,0 +1,13 @@
+%% test % python ../tasks_mermaid_generator.py -i test.mmd -o tasks.py
+%% 
+
+graph TD
+
+I1[test.ly]
+T1[pdf]
+R1[docker run --rm codello/lilypond:dev INCLUDES test.ly && mkdir -p exports && mv test.pdf exports  ]
+O1[exports/test.pdf]
+
+I1 --> T1
+T1 --> R1
+R1 --> O1
