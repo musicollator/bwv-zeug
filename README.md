@@ -55,19 +55,31 @@ The pipeline automatically detects and uses project-specific settings, falling b
 
 ## Output
 
-The final output is a structured JSON dataset where each musical event contains:
+The final pipeline outputs are optimized for web-based score animation:
 
-```json
-{
-  "hrefs": ["primary_notehead.svg#ref", "tied_secondary.svg#ref"],
-  "on_tick": 480,
-  "off_tick": 960, 
-  "pitch": 60,
-  "channel": 1
-}
+**`exports/BWV000.svg`** - Clean SVG with interactive noteheads:
+```xml
+<path data-ref="file.ly:12:34" d="..." />
 ```
 
-This format enables score-following applications to highlight the appropriate visual noteheads in perfect synchronization with audio playback.
+**`exports/BWV000.yaml`** - Unified synchronization data:
+```yaml
+meta:
+  totalMeasures: 32
+  tickToSecondRatio: 0.00125
+  channels:
+    0: {minPitch: 48, maxPitch: 84, count: 245}
+
+flow:
+- [0, null, 1, bar]           # Bar 1 at tick 0
+- [120, 0, 480, ["file.ly:5:8"]]  # Note: start_tick, channel, end_tick, hrefs
+- [480, 0, 960, ["file.ly:6:12", "file.ly:6:20"]]  # Tied note with secondary refs
+```
+
+This format enables real-time score animation where JavaScript can:
+- Target noteheads via `data-ref` attributes for highlighting
+- Synchronize audio playback with the unified flow timeline
+- Handle tied notes and measure boundaries seamlessly
 
 ## Technical Notes
 
