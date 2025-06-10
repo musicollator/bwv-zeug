@@ -48,6 +48,7 @@ Each BWV project can be fine-tuned with a YAML configuration file:
 ```yaml
 # bwv543.yaml
 tolerance: 2.5        # X-coordinate tolerance for chord grouping
+noDuplicates: false   # Preserve multiple noteheads at identical positions (default: true merges duplicates)
 ```
 
 The pipeline automatically detects and uses project-specific settings, falling back to sensible defaults when no configuration is provided.
