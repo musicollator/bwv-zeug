@@ -82,23 +82,24 @@ def extract_meta(notes_data, config_data):
     for note in notes_data:
         all_ticks.extend([note['on_tick'], note['off_tick']])
     
-    min_tick = min(all_ticks)
+    # Musical start is always 0, regardless of when first note occurs
+    min_tick = 0  # ← Fixed: don't assume first note = musical start
     max_tick = max(all_ticks)
     
-    # Calculate rough conversion ratio (will be refined with actual audio data)
+    # Calculate rough conversion ratio using full musical span from 0
     total_duration = config_data['musicalStructure']['totalDurationSeconds']
-    tick_to_second_ratio = total_duration / (max_tick - min_tick)
+    tick_to_second_ratio = total_duration / max_tick  # ← Fixed: use full span from 0
     
-    # Calculate channel statistics
+    # Calculate channel statistics (unchanged)
     channel_stats = calculate_channel_stats(notes_data)
     
     return {
         'totalMeasures': config_data['musicalStructure']['totalMeasures'],
         'minTick': min_tick,
         'maxTick': max_tick,
-        'minMoment': 0,  # Will be updated from SVG
-        'maxMoment': config_data['musicalStructure']['totalMeasures'],  # Rough estimate
-        'musicStartSeconds': 0.0,  # Will be refined
+        'minMoment': 0,
+        'maxMoment': config_data['musicalStructure']['totalMeasures'],
+        'musicStartSeconds': 0.0,
         'tickToSecondRatio': tick_to_second_ratio,
         'channels': channel_stats
     }
