@@ -30,7 +30,7 @@ ARROW : '-->' ;
 ARROW_LABELED : '-->|' (~'|')* '|' ;
 
 // Comments
-COMMENT_LINE : '%%' ~[\r\n]* ;
+COMMENT_LINE : '%%' ~[\r\n]*  -> skip ;
 
 // Init blocks
 INIT_START : '%%{init:' -> pushMode(INSIDE_INIT) ;
