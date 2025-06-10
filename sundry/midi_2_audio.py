@@ -60,7 +60,7 @@ def main():
     print(f"📊 Output: {wav_file}")
     
     # SoundFont configuration
-    soundfont_path = "/usr/local/share/soundfonts/Definitive_Guitar_Kit.sf2"
+    soundfont_path = "/usr/local/share/soundfonts/German8 Harpsichord.sf2"
     
     # Verify SoundFont exists
     if not os.path.exists(soundfont_path):
