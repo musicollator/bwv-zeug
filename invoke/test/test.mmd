@@ -1,5 +1,12 @@
 %% test % python ../tasks_mermaid_generator.py -i test.mmd -o tasks.py
 %% 
+%% then patch tasks.py;
+%%   import sys
+%%   import os
+%%   sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+%% 
+%%   from tasks_utils import ...
+
 
 graph TD
 
