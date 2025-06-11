@@ -12,7 +12,7 @@ BWV-Zeug transforms LilyPond-generated musical scores into data suitable for ani
 - **Processes MIDI timing data** to create temporal event sequences  
 - **Aligns visual and temporal elements** using tolerance-based chord detection
 - **Handles musical complexities** like tied notes, multi-voice scores, and chord groupings
-- **Generates structured datasets** (JSON/CSV) for use in score-following applications
+- **Generates structured datasets** (YAML) for use in score-following applications
 
 The result is a synchronized dataset where every visual notehead in the score is mapped to its corresponding MIDI timing and pitch data, enabling real-time animated score following.
 
