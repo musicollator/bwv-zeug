@@ -1,55 +1,51 @@
 meta:
-  totalMeasures: 4
+  totalMeasures: 3
   minTick: 0
-  maxTick: 2688
+  maxTick: 2496
   minMoment: 0
-  maxMoment: 4
+  maxMoment: 3
   musicStartSeconds: 0.0
-  tickToSecondRatio: 0.0026041666666666665
+  tickToSecondRatio: 0.002670673076923077
   channels:
-    1:
-      minPitch: 41
-      maxPitch: 65
-      count: 12
     0:
       minPitch: 65
       maxPitch: 77
       count: 20
+    1:
+      minPitch: 41
+      maxPitch: 65
+      count: 8
 
 flow:
-- [0, None, 1, bar]
-- [0, 1, 384, ['test-main.ly:37:21']]
-- [0, 1, 384, ['test-main.ly:37:8']]
-- [0, 1, 384, ['test-main.ly:37:11']]
-- [0, 1, 384, ['test-main.ly:37:13']]
-- [192, 0, 384, ['test-main.ly:11:10']]
-- [384, 0, 480, ['test-main.ly:17:12']]
-- [384, 0, 576, ['test-main.ly:11:15']]
-- [576, 0, 672, ['test-main.ly:17:18']]
-- [576, 0, 768, ['test-main.ly:11:19']]
-- [768, None, 2, bar]
-- [768, 0, 1152, ['test-main.ly:18:7']]
-- [768, 0, 1152, ['test-main.ly:12:7']]
-- [960, 1, 1152, ['test-main.ly:38:6']]
-- [1152, 1, 1344, ['test-main.ly:38:10']]
-- [1152, 0, 1536, ['test-main.ly:18:11']]
-- [1152, 0, 1536, ['test-main.ly:12:12']]
-- [1344, 1, 1536, ['test-main.ly:38:14']]
-- [1536, None, 3, bar]
-- [1536, 0, 2304, ['test-main.ly:19:7']]
-- [1536, 0, 1920, ['test-main.ly:25:7']]
-- [1536, 0, 1728, ['test-main.ly:13:7']]
-- [1728, 1, 1920, ['test-main.ly:39:6']]
-- [1728, 0, 2112, ['test-main.ly:13:12']]
-- [1920, 1, 2112, ['test-main.ly:39:9']]
-- [1920, 0, 2304, ['test-main.ly:25:11']]
-- [2112, 1, 2304, ['test-main.ly:39:12']]
-- [2112, 0, 2208, ['test-main.ly:13:17']]
-- [2208, 0, 2496, ['test-main.ly:13:25', 'test-main.ly:14:14']]
-- [2304, None, 4, bar]
-- [2304, 1, 2688, ['test-main.ly:40:14', 'test-main.ly:40:6']]
-- [2304, 0, 2688, ['test-main.ly:20:7']]
-- [2304, 0, 2496, ['test-main.ly:14:9']]
-- [2496, 1, 2688, ['test-main.ly:40:17']]
-- [2496, 0, 2688, ['test-main.ly:14:23']]
-- [2496, 0, 2688, ['test-main.ly:14:26']]
+- [0, None, 0, bar]
+- [0, 0, 192, ['test-main.ly:10:7']]
+- [192, 0, 288, ['test-main.ly:15:10']]
+- [192, 0, 384, ['test-main.ly:10:12']]
+- [384, 0, 480, ['test-main.ly:15:16']]
+- [384, 0, 576, ['test-main.ly:10:16']]
+- [576, None, 1, bar]
+- [576, 0, 960, ['test-main.ly:16:7']]
+- [576, 0, 960, ['test-main.ly:11:7']]
+- [768, 1, 960, ['test-main.ly:34:6']]
+- [960, 1, 1152, ['test-main.ly:34:10']]
+- [960, 0, 1344, ['test-main.ly:16:11']]
+- [960, 0, 1344, ['test-main.ly:11:12']]
+- [1152, 1, 1344, ['test-main.ly:34:14']]
+- [1344, None, 2, bar]
+- [1344, 0, 2112, ['test-main.ly:17:7']]
+- [1344, 0, 1728, ['test-main.ly:22:7']]
+- [1344, 0, 1536, ['test-main.ly:12:7']]
+- [1536, 1, 1728, ['test-main.ly:35:6']]
+- [1536, 0, 1920, ['test-main.ly:12:12']]
+- [1728, 1, 1920, ['test-main.ly:35:9']]
+- [1728, 0, 2112, ['test-main.ly:22:11']]
+- [1920, 1, 2112, ['test-main.ly:35:12']]
+- [1920, 0, 2016, ['test-main.ly:12:17']]
+- [2016, 0, 2304, ['test-main.ly:12:25', 'test-main.ly:13:14']]
+- [2112, None, 3, bar]
+- [2112, 1, 2496, ['test-main.ly:36:14', 'test-main.ly:36:6']]
+- [2112, 0, 2496, ['test-main.ly:18:7']]
+- [2112, 0, 2304, ['test-main.ly:13:9']]
+- [2304, 1, 2496, ['test-main.ly:36:17']]
+- [2304, 0, 2496, ['test-main.ly:13:23']]
+- [2304, 0, 2496, ['test-main.ly:13:26']]
