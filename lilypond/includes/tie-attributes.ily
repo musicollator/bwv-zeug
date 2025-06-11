@@ -85,7 +85,7 @@
 #(define (hex-hash location-str)
    "Generate a pure hex hash from location string"
    (if location-str
-       (string-append "x" (string-upcase (substring (number->string (string-hash location-str) 16) 0 4)))
+       (string-append "x" (string-upcase (substring (number->string (string-hash location-str) 16) 0 8)))
        #f))
 
 #(define (get-note-origin note-head)
