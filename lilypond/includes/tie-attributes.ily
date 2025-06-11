@@ -85,7 +85,7 @@
 #(define (hex-hash location-str)
    "Generate a pure hex hash from location string"
    (if location-str
-       (number->string (string-hash location-str) 16)
+       (string-append "x" (string-upcase (substring (number->string (string-hash location-str) 16) 0 4)))
        #f))
 
 #(define (get-note-origin note-head)
@@ -131,7 +131,7 @@
                             (when (and left-id right-id)
                               ;; Add attributes to left note head (check for existing role)
                               (let ((left-attrs (ly:grob-property left-note-head 'output-attributes '())))
-                                ;; (set! left-attrs (safe-add-attribute left-attrs "id" left-id))
+                                (set! left-attrs (safe-add-attribute left-attrs "id" left-id))
                                 (set! left-attrs (safe-add-attribute left-attrs "data-tie-role" 
                                                                    (if (assoc "data-tie-role" left-attrs) "both" "start")))
                                 (set! left-attrs (safe-add-attribute left-attrs "data-tie-to" (string-append "#" right-id)))
@@ -139,7 +139,7 @@
                               
                               ;; Add attributes to right note head (check for existing role)
                               (let ((right-attrs (ly:grob-property right-note-head 'output-attributes '())))
-                                ;; (set! right-attrs (safe-add-attribute right-attrs "id" right-id))
+                                (set! right-attrs (safe-add-attribute right-attrs "id" right-id))
                                 (set! right-attrs (safe-add-attribute right-attrs "data-tie-role"
                                                                     (if (assoc "data-tie-role" right-attrs) "both" "end")))
                                 (set! right-attrs (safe-add-attribute right-attrs "data-tie-from" (string-append "#" left-id)))
