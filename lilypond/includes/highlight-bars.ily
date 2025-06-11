@@ -1,6 +1,46 @@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % highlight-bars.ily
-% Clean version - creates clean SVG rectangles with timing data attributes
-% JavaScript handles visibility and styling
+%
+% LILYPOND INCLUDE FILE - SVG Bar Highlighting System
+%
+% PURPOSE:
+% Creates LilyPond engravers that add clean SVG rectangles with timing data
+% attributes for interactive bar highlighting. Works in conjunction with
+% JavaScript to provide visual feedback during score playback.
+%
+% FEATURES:
+% - Generates clean SVG highlight rectangles with data attributes
+% - Collects raw LilyPond timing data for each bar
+% - Adds bar numbers and timing moments as SVG data attributes
+% - JavaScript handles visibility and styling of highlights
+%
+% COMPONENTS:
+% - Simple_highlight_engraver: Creates highlight rectangles
+% - Bar_timing_collector: Collects timing data
+% - add-data-bar-to-highlight: Adds data attributes to highlights
+%
+% USAGE:
+% Include this file and add to your SVG layout context:
+%   \layout {
+%     \context {
+%       \Staff
+%       \consists #Simple_highlight_engraver
+%       \consists Staff_highlight_engraver
+%       \consists #Bar_timing_collector
+%     }
+%     \context {
+%       \Score
+%       \override StaffHighlight.after-line-breaking = #add-data-bar-to-highlight
+%     }
+%   }
+%
+% OUTPUT:
+% SVG elements with data-bar, data-bar-moment-main, and data-bar-moment-grace
+% attributes that can be styled and controlled via JavaScript/CSS.
+%
+% PART OF: BWV LilyPond Project - Shared include for all BWV scores
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 #(define (make-simple-highlight-engraver)
    "Create a simple engraver that adds clean highlight rectangles with timing data."

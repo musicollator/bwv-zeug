@@ -1,5 +1,45 @@
-% tie-attributes.ily - Pure hex hash identifiers
-% The middle note in a tie chain needs to be both an end and a start
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% tie-attributes.ily
+%
+% LILYPOND INCLUDE FILE - Note Tie Relationship System
+%
+% PURPOSE:
+% Adds data attributes to establish tie relationships in the SVG output. This
+% enables interactive applications to highlight tied note sequences and
+% understand musical connections.
+%
+% FEATURES:
+% - Handles complex tie chains (start, end, both roles)
+% - Adds data-tie-role, data-tie-to, and data-tie-from attributes
+% - Works with middle notes that are both tie endings and beginnings
+% - Uses internal location-based identification system
+%
+% ALGORITHM:
+% 1. Extract source file location from note heads
+% 2. Generate internal identifiers from location data
+% 3. Determine tie role (start, end, both)
+% 4. Add appropriate data attributes to SVG elements
+%
+% DATA ATTRIBUTES ADDED:
+% - data-tie-role: "start", "end", or "both"
+% - data-tie-to: Reference to target note identifier (for start/both)
+% - data-tie-from: Reference to source note identifier (for end/both)
+%
+% USAGE:
+% Include this file and add to your Voice context:
+%   \layout {
+%     \context {
+%       \Voice
+%       \consists \Tie_grob_engraver
+%     }
+%   }
+%
+% OUTPUT:
+% SVG note elements with tie relationship data that can be processed
+% by JavaScript for interactive highlighting and musical analysis.
+%
+% PART OF: BWV LilyPond Project - Shared include for all BWV scores
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 #(define (find-note-head-in-bound bound-obj)
    "Find a NoteHead grob within or associated with a bound object"
@@ -91,7 +131,7 @@
                             (when (and left-id right-id)
                               ;; Add attributes to left note head (check for existing role)
                               (let ((left-attrs (ly:grob-property left-note-head 'output-attributes '())))
-                                (set! left-attrs (safe-add-attribute left-attrs "id" left-id))
+                                ;; (set! left-attrs (safe-add-attribute left-attrs "id" left-id))
                                 (set! left-attrs (safe-add-attribute left-attrs "data-tie-role" 
                                                                    (if (assoc "data-tie-role" left-attrs) "both" "start")))
                                 (set! left-attrs (safe-add-attribute left-attrs "data-tie-to" (string-append "#" right-id)))
@@ -99,7 +139,7 @@
                               
                               ;; Add attributes to right note head (check for existing role)
                               (let ((right-attrs (ly:grob-property right-note-head 'output-attributes '())))
-                                (set! right-attrs (safe-add-attribute right-attrs "id" right-id))
+                                ;; (set! right-attrs (safe-add-attribute right-attrs "id" right-id))
                                 (set! right-attrs (safe-add-attribute right-attrs "data-tie-role"
                                                                     (if (assoc "data-tie-role" right-attrs) "both" "end")))
                                 (set! right-attrs (safe-add-attribute right-attrs "data-tie-from" (string-append "#" left-id)))
