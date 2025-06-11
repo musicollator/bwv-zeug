@@ -7,8 +7,6 @@ workInfo:
   externalURL: ""
 
 files:
-  svgPath: "test_optimized.svg"
-  notesPath: "test_json_notes.json"
   audioPath: "test.wav"
   
 musicalStructure:
