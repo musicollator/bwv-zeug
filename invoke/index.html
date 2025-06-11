@@ -46,7 +46,7 @@
     <h1>🎼 BWV Pipeline Mermaid Test</h1>
     
     <div class="controls">
-        <button onclick="loadAndRender()">🔄 Load & Render tasks.mmd</button>
+        <button onclick="loadAndRender()">🔄 Load & Render TASKS.mmd</button>
     </div>
     
     <div id="error-display"></div>
@@ -68,10 +68,10 @@
                 errorDiv.innerHTML = '';
                 container.innerHTML = '';
                 
-                // Load tasks.mmd from same directory
-                const response = await fetch('./tasks.mmd');
+                // Load TASKS.mmd from same directory
+                const response = await fetch('./TASKS.mmd');
                 if (!response.ok) {
-                    throw new Error(`Failed to load tasks.mmd: ${response.status}`);
+                    throw new Error(`Failed to load TASKS.mmd: ${response.status}`);
                 }
                 
                 const mermaidCode = await response.text();

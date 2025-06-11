@@ -491,7 +491,7 @@ def info(c):
     print("🚀 BWV Build System")
     print("=" * 50)
     print(f"🎼 Project: {{PROJECT_NAME}}")
-    print(f"📄 Pipeline: tasks.mmd")
+    print(f"📄 Pipeline: TASKS.mmd")
     print(f"🤖 Generated: tasks_generated.py")
     print(f"📋 Available tasks:")
     print("   • status     - Show file status")
@@ -499,7 +499,7 @@ def info(c):
     print("   • clean_all  - Delete all generated files")
     print("   • all        - Build all final outputs")
     print("   • info       - This information")
-    print("   🔧 Pipeline tasks (from tasks.mmd):")
+    print("   🔧 Pipeline tasks (from TASKS.mmd):")
     
     # Pipeline tasks extracted from mermaid diagram
     pipeline_tasks = [
@@ -523,10 +523,10 @@ def generate_tasks_file(listener):
     HEADER = textwrap.dedent("""\
         #!/usr/bin/env python3
         \"\"\"
-        Generated Invoke Tasks - Auto-generated from tasks.mmd
+        Generated Invoke Tasks - Auto-generated from TASKS.mmd
 
         DO NOT EDIT MANUALLY - This file is auto-generated
-        Regenerate with: python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
+        Regenerate with: python tasks_mermaid_generator.py -i TASKS.mmd -o tasks_generated.py
         \"\"\"
 
         from invoke import task
@@ -678,7 +678,7 @@ def generate_file_header():
 Generated Meta Tasks - Auto-generated from mermaid diagram
 
 DO NOT EDIT MANUALLY - This file is auto-generated
-Regenerate with: python tasks_mermaid_generator.py -i tasks.mmd -o meta_tasks.py
+Regenerate with: python tasks_mermaid_generator.py -i TASKS.mmd -o meta_tasks.py
 """
 
 from invoke import task
@@ -807,8 +807,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
-  python tasks_mermaid_generator.py --input tasks.mmd --output generated_tasks.py
+  python tasks_mermaid_generator.py -i TASKS.mmd -o tasks_generated.py
+  python tasks_mermaid_generator.py --input TASKS.mmd --output generated_tasks.py
         ''')
     
     parser.add_argument('-i', '--input', 

@@ -13,7 +13,7 @@ Automated task generation system for Bach score processing using Mermaid diagram
 2. **Generate tasks** from Mermaid diagram:
    ```bash
    cd invoke
-   python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py
+   python tasks_mermaid_generator.py -i TASKS.mmd -o tasks_generated.py
    ```
 
    ```bash
@@ -34,7 +34,7 @@ Automated task generation system for Bach score processing using Mermaid diagram
 - `antlr/MermaidPipelineParser.g4` - ANTLR parser grammar
 - `tasks_mermaid_generator.py` - Parser and task generator
 - `tasks_utils.py` - Task utilities and smart caching system
-- `tasks.mmd` - Mermaid diagram defining the build pipeline
+- `TASKS.mmd` - Mermaid diagram defining the build pipeline
 - `tasks.py` - Main task file (includes generated tasks)
 
 ### Generated Files (don't commit)
@@ -45,8 +45,8 @@ Automated task generation system for Bach score processing using Mermaid diagram
 
 ## Workflow
 
-1. **Edit pipeline**: Modify `tasks.mmd` with new tasks/dependencies
-2. **Regenerate tasks**: `python tasks_mermaid_generator.py -i tasks.mmd -o tasks_generated.py`
+1. **Edit pipeline**: Modify `TASKS.mmd` with new tasks/dependencies
+2. **Regenerate tasks**: `python tasks_mermaid_generator.py -i TASKS.mmd -o tasks_generated.py`
 3. **Use tasks**: `invoke <task_name>` (tasks.py imports generated tasks)
 
 ## Features
