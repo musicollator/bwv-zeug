@@ -20,13 +20,13 @@ Reusable components for all projects:
 - **[`tie-attributes.ily`](includes/tie-attributes.ily)** - Generates unique IDs and relationship data for tied notes
 
 ### 🎵 Project Files (per musical piece)
-Each musical piece requires exactly **three files**:
+Each musical piece requires **at least three files**:
 
 - **`*_ly_main.ly`** - **Pure musical content only** (no book/score/paper/layout structures) → [**test-main.ly**](test/test-main.ly)
 - **`*.ly`** - **Display wrapper** with interactive highlighting features → [**test.ly**](test/test.ly)
 - **`*_ly_one_line.ly`** - **Synchronization wrapper** with one-line layout and tie data → [**test_ly_one_line.ly**](test/test_ly_one_line.ly)
 
-**Note**: `*_ly_main.ly` is the **entry point** for musical content that can **differ wildly among projects** - it remains independent of the interactive system and **must not interfere** with wrapper-defined structures.
+**Note**: `*_ly_main.ly` is the **entry point** for musical content that can **differ wildly among projects** - it remains independent of the interactive system and **must not interfere** with wrapper-defined structures. It may include other files that comply with the same constraints.
 
 ## Essential Pattern
 
