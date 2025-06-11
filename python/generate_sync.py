@@ -423,22 +423,23 @@ def clean_svg(svg_root):
     
     print(f"Found {len(elements_to_process)} <a> elements to process")
     
-    # Process each <a> element to extract note reference and flatten structure
+# Process each <a> element to extract note reference and flatten structure
     for a_elem in elements_to_process:
         href = a_elem.get('href')
         # Convert textedit href to simplified reference
         lily_ref = href.replace('textedit:///work/', '')
         simplified_ref = simplify_href(lily_ref)
         
-        # Find the path element inside this <a> - use simple iteration
-        path_elem = None
+        # Count all path elements inside this <a>
+        path_elements = []
         for child in a_elem:
             if child.tag == 'path' or child.tag.endswith('}path'):
-                path_elem = child
-                break
+                path_elements.append(child)
         
-        if path_elem is not None:
-            print(f"Processing: {href} -> {simplified_ref}")
+        if len(path_elements) == 1:
+            # Single path: current behavior (flatten to path with data-ref)
+            path_elem = path_elements[0]
+            print(f"Processing single path: {href} -> {simplified_ref}")
             
             # Create a new path element with the same attributes
             new_path = ET.Element('path')
@@ -461,9 +462,35 @@ def clean_svg(svg_root):
                 parent.remove(a_elem)
             else:
                 print(f"Warning: Could not find parent for <a> element")
+                
+        elif len(path_elements) > 1:
+            # Multiple paths: convert <a> to <g> (group) and preserve all children
+            print(f"Processing multiple paths: {href} -> {simplified_ref} ({len(path_elements)} paths)")
+            
+            # Create a new group element
+            new_group = ET.Element('g')
+            
+            # Add data-ref attribute for JavaScript targeting
+            new_group.set('data-ref', simplified_ref)
+            
+            # Move all children from <a> to <g>
+            for child in list(a_elem):
+                new_group.append(child)
+            
+            # Replace <a> element with new group element
+            parent = parent_map.get(a_elem)
+            if parent is not None:
+                # Insert new group element at the same position as the <a>
+                a_index = list(parent).index(a_elem)
+                parent.insert(a_index, new_group)
+                # Remove the <a> element
+                parent.remove(a_elem)
+            else:
+                print(f"Warning: Could not find parent for <a> element")
+                
         else:
             print(f"Warning: No path found in <a> element with href {href}")
-    
+            
     print(f"Successfully processed {len(elements_to_process)} note elements")
     
     # =============================================================================

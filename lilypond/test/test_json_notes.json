@@ -226,17 +226,18 @@
   },
   {
     "hrefs": [
-      "test-main.ly:13:24:25"
+      "test-main.ly:13:24:25",
+      "test-main.ly:14:13:14"
     ],
     "on_tick": 2208,
-    "off_tick": 2304,
+    "off_tick": 2496,
     "pitch": 74,
     "channel": 0
   },
   {
     "hrefs": [
-      "test-main.ly:40:5:6",
-      "test-main.ly:40:13:14"
+      "test-main.ly:40:13:14",
+      "test-main.ly:40:5:6"
     ],
     "on_tick": 2304,
     "off_tick": 2688,
@@ -259,15 +260,6 @@
     "on_tick": 2304,
     "off_tick": 2496,
     "pitch": 70,
-    "channel": 0
-  },
-  {
-    "hrefs": [
-      "test-main.ly:14:13:14"
-    ],
-    "on_tick": 2304,
-    "off_tick": 2496,
-    "pitch": 74,
     "channel": 0
   },
   {

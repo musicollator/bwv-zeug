@@ -14,7 +14,7 @@ meta:
     0:
       minPitch: 65
       maxPitch: 77
-      count: 21
+      count: 20
 
 flow:
 - [0, None, 1, bar]
@@ -45,12 +45,11 @@ flow:
 - [1920, 0, 2304, ['test-main.ly:25:11']]
 - [2112, 1, 2304, ['test-main.ly:39:12']]
 - [2112, 0, 2208, ['test-main.ly:13:17']]
-- [2208, 0, 2304, ['test-main.ly:13:25']]
+- [2208, 0, 2496, ['test-main.ly:13:25', 'test-main.ly:14:14']]
 - [2304, None, 4, bar]
-- [2304, 1, 2688, ['test-main.ly:40:6', 'test-main.ly:40:14']]
+- [2304, 1, 2688, ['test-main.ly:40:14', 'test-main.ly:40:6']]
 - [2304, 0, 2688, ['test-main.ly:20:7']]
 - [2304, 0, 2496, ['test-main.ly:14:9']]
-- [2304, 0, 2496, ['test-main.ly:14:14']]
 - [2496, 1, 2688, ['test-main.ly:40:17']]
 - [2496, 0, 2688, ['test-main.ly:14:23']]
 - [2496, 0, 2688, ['test-main.ly:14:26']]

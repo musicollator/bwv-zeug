@@ -10,7 +10,7 @@ upper = \absolute {
       %%%% bes'8 |  % Pickup measure
       r8 f''8 a'8 c''8 |  % First full measure (adjusted)
       c''4 d''4 |
-      c''8 f''4 ees''16 d''16 |
+      c''8 f''4 ees''16 d''16 ~ |
       < bes' d'' >8 < a' c'' >8 r4
     } \\ {
       %%%% g'8-. |  % Pickup measure  
