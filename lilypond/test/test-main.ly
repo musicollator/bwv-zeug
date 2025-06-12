@@ -36,7 +36,7 @@ lower = \absolute {
   << f4 \\ { f8 f,8 } >> r4 |  % New bar 3 (was bar 4)
 }
 
-Qwe = \new PianoStaff <<
+bwv = \new PianoStaff <<
   \new Staff = "upper" \upper
   \new Staff = "lower" \lower
 >>

@@ -1,10 +1,9 @@
 \version "2.24.0"
 
-% docker run -v ".:/work" codello/lilypond:dev --svg test_ties_simple.ly 1>test_ties_simple.log 2>&1
+% docker run -v ".:/work" codello/lilypond:dev --svg ties_chord.ly
 
-
-\include "_tie-attributes-chords-experimental.ily"
-\include "_tie-attributes-chords-error-detection-experimental.ily"
+\include "tie-attributes-chords.ily"
+\include "tie-attributes-chords-error-detection.ily"
 
 \header {
   title = "Chord Tie Investigation"
