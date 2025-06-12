@@ -76,7 +76,7 @@ oneLineLayout = \layout {
   }
 }
 
-oneLineMidi = \midi {
+staffPerformerToVoiceContextMidi = \midi {
   % CRITICAL: Move Staff_performer from Staff to Voice context
   \context {
     \Staff
@@ -92,13 +92,3 @@ oneLineMidi = \midi {
     midiChannelMapping = #'instrument
   }
 }
-
-P = #(define-music-function (parser location) () #{ \rightHandFinger #1 #})
-I = #(define-music-function (parser location) () #{ \rightHandFinger #2 #})
-M = #(define-music-function (parser location) () #{ \rightHandFinger #3 #})
-A = #(define-music-function (parser location) () #{ \rightHandFinger #4 #})
-
-G = #(define-music-function () () #{ \glissando #})
-
-H = #(define-music-function () () #{ \harmonic  #})
-
