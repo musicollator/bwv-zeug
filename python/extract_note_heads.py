@@ -30,6 +30,7 @@ Input Files:
 
 Output:
 - CSV file with notehead coordinates, pitches, and reference links in format: snippet,href,x,y
+- Optional fermata CSV file with fermata positions only
 """
 
 import re
@@ -301,14 +302,11 @@ def setup_argument_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Use automatic tolerance detection from project config:
-  python extract_note_heads.py -i score.svg -o noteheads.csv
+  # Basic extraction:
+  python extract_note_heads.py -i score.svg -o noteheads.csv -of fermatas.csv
   
-  # Override with specific tolerance:
-  python extract_note_heads.py -i score.svg -o noteheads.csv --tolerance 3.0
-  
-  # Minimal tolerance for precise chord detection:
-  python extract_note_heads.py -i score.svg -o noteheads.csv -t 0.5
+  # With custom tolerance:
+  python extract_note_heads.py -i score.svg -o noteheads.csv -of fermatas.csv --tolerance 3.0
 
 Configuration Files:
   Create PROJECT_NAME.yaml in the working directory to set project-specific tolerance:
@@ -328,6 +326,10 @@ Configuration Files:
     parser.add_argument('-o', '--output',
                        required=True, 
                        help='Output CSV file path for noteheads (required)')
+    
+    parser.add_argument('-of', '--output-fermata',
+                       required=True,
+                       help='Output CSV file path for fermatas (required)')
     
     parser.add_argument('-t', '--tolerance',
                        type=float,
@@ -358,6 +360,7 @@ def main():
     
     svg_file = args.input
     output_csv = args.output
+    fermata_csv = args.output_fermata
     
     # CONFIGURATION-AWARE TOLERANCE LOADING
     # Priority: CLI argument > project config > default
@@ -371,6 +374,7 @@ def main():
     
     print(f"📄 Input SVG: {svg_file}")
     print(f"📊 Output CSV: {output_csv}")
+    print(f"🎯 Fermata CSV: {fermata_csv}")
     print(f"📏 Chord tolerance: ±{tolerance} units")
     print()
 
@@ -455,13 +459,13 @@ def main():
                                     fermata_value = "true"
                                     print(f"   🎵 Found fermata on parent group: {snippet} at ({x}, {y})")                        
                         
-                        # Store the notehead information
+                        # Store the notehead information including fermata data
                         notehead_data.append({
                             "x": x,
                             "y": y,
                             "href": href,
                             "snippet": snippet,
-                            "fermata": fermata_value 
+                            "fermata": fermata_value  # None for non-fermata notes, "true" for fermata notes
                         })
 
         print(f"   📊 Processed {len(root.findall('.//svg:a', NS))} anchor elements")
@@ -522,8 +526,13 @@ def main():
         fermata_data = [note for note in notehead_data if note.get('fermata') == 'true']
         if fermata_data:
             fermata_df = pd.DataFrame(fermata_data)[["snippet", "href", "x", "y"]]  
-            fermata_csv = output_csv.replace('.csv', '_fermata.csv')
-            save_dataframe_with_lilypond_csv(fermata_df, fermata_csv, na_rep=None)        
+            save_dataframe_with_lilypond_csv(fermata_df, fermata_csv)
+            print(f"🎯 Fermata file created: {fermata_csv} ({len(fermata_data)} fermatas)")
+        else:
+            # Create empty fermata file
+            empty_df = pd.DataFrame(columns=["snippet", "href", "x", "y"])
+            save_dataframe_with_lilypond_csv(empty_df, fermata_csv)
+            print(f"🎯 Empty fermata file created: {fermata_csv} (no fermatas found)")
 
         # =================================================================
         # COMPLETION SUMMARY
@@ -537,11 +546,13 @@ def main():
             x_range = max(n["x"] for n in notehead_data) - min(n["x"] for n in notehead_data)
             y_range = max(n["y"] for n in notehead_data) - min(n["y"] for n in notehead_data)
             unique_pitches = len(set(n["snippet"] for n in notehead_data))
+            fermata_count = sum(1 for n in notehead_data if n.get("fermata") == "true")
             
             print(f"\n📊 Extraction Statistics:")
             print(f"   📏 X-coordinate range: {x_range:.1f} units")
             print(f"   📐 Y-coordinate range: {y_range:.1f} units") 
             print(f"   🎵 Unique pitch notations: {unique_pitches}")
+            print(f"   🎯 Notes with fermatas: {fermata_count}")
             if unique_pitches > 0:
                 avg_notes_per_pitch = len(notehead_data) / unique_pitches
                 print(f"   🔗 Average notes per pitch: {avg_notes_per_pitch:.1f}")

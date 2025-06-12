@@ -2,6 +2,7 @@
 
 \include "tie-attributes.ily"
 \include "highlight-bars.ily"
+\include "fermata.ily"
 
 \header {
   tagline = ##f  % Removes LilyPond version info
@@ -73,6 +74,7 @@ oneLineLayout = \layout {
   \context {
     \Voice
     \consists \Tie_grob_engraver
+    \consists #simple-fermata-data-engraver
   }
 }
 

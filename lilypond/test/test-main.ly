@@ -8,7 +8,7 @@ upper = \absolute {
   <<
     {
       f''8-> a'8 c''8 ~ |        % Anacrusis (taken from end of original bar 1)
-      c''4 d''4 |       % New bar 1 (was bar 2)
+      c''4 \fermata d''4 |       % New bar 1 (was bar 2)
       c''8 f''4 ees''16 d''16 |  % New bar 2 (was bar 3)
       < bes' d'' >8 < a' c'' >8 r4   % New bar 3 (was bar 4)
     } \\ {
