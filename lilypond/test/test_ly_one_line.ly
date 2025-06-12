@@ -8,8 +8,11 @@
 \book {
   \oneLinePaper
   \score {
-    \bwv
+    {
+      \tempo 4 = 120
+      \bwv
+    }
     \oneLineLayout
-    \staffPerformerToVoiceContextMidi
+    \midiStaffPerformerToVoiceContext
   }
 }

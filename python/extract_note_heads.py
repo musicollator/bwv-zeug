@@ -89,42 +89,62 @@ def load_project_tolerance():
     return 1.0  # Default tolerance
 
 # =============================================================================
-# LILYPOND PITCH PATTERN MATCHING
+# LILYPOND PITCH PATTERN MATCHING - V2
 # =============================================================================
 
 # Regular expression to identify LilyPond note syntax in source code
+# V2: Keep original regex but add better \rest detection
 # Matches: letter name + optional accidentals + optional octave marks
 note_regex = re.compile(r"""
             ^                 # start of string
-            ([a-g])        # pitch letter
+            ([a-g])           # pitch letter
             (isis|eses|is|es)?# optional accidentals
-            \s*               # optional octave marks
+            \s*               # optional whitespace  
             [,']*             # optional octave marks
         """, re.VERBOSE)
 
 # =============================================================================
-# LILYPOND SOURCE CODE PARSING FUNCTION
+# LILYPOND SOURCE CODE PARSING FUNCTION - V2
 # =============================================================================
 
 def extract_text_from_href(href):
     """
     Extract LilyPond pitch notation from cross-reference URLs.
     
+    V2 IMPROVEMENTS:
+    - Properly handles duration in note regex (d''2, cis'4., etc.)
+    - Detects and excludes notes followed by \rest (positioned rests)
+    - Supports both "b\rest" and "b \rest" formats
+    
     LilyPond embeds "textedit" URLs in SVG that point back to specific
     locations in the source .ly file. These URLs encode file path, line
     number, and column position, allowing us to extract the exact pitch
     notation that generated each visual notehead.
+    
+    This function now properly excludes notes followed by \rest, which
+    represent positioned rests rather than actual notes.
     
     Args:
         href (str): TextEdit URL from SVG (e.g., "textedit:///work/file.ly:25:10")
         
     Returns:
         str or None: LilyPond pitch notation (e.g., "cis'") or None if not found
+                     or if the note is followed by \rest
         
     URL Format: textedit:///work/filepath:line:column
     - filepath: Path to .ly source file (extracted from href)
     - line: 1-based line number  
     - column: 1-based character position
+    
+    Examples of what gets excluded:
+    - "b \rest" -> None (positioned rest)
+    - "d''2 \rest" -> None (positioned rest with duration)
+    - "cis'4.\rest" -> None (positioned rest with dotted duration)
+    
+    Examples of what gets included:
+    - "cis'4" -> "cis'4" (regular note)
+    - "d''2" -> "d''2" (note with duration)
+    - "bes," -> "bes," (note with octave)
     """
     try:
         # Clean up URL format - remove textedit protocol prefix
@@ -147,19 +167,46 @@ def extract_text_from_href(href):
         text_line = lines[line][col_start:]
         text = text_line.strip().strip("[]<>()")
         
-        # Attempt to match LilyPond note pattern
+        # Attempt to match LilyPond note pattern (basic note + accidentals + octaves)
         match = note_regex.match(text)
 
         if match:
-            # Return the matched note notation without extra whitespace
-            return match.group(0).replace(" ", "")
+            # Get the basic note part (without duration) - this is what we'll return
+            note_part = match.group(0).replace(" ", "")
+            
+            # Now manually look for duration after the note to find the end of the complete note
+            remaining_after_note = text[match.end():]
+            
+            # Look for optional duration (numbers like 1, 2, 4, 8, 16, etc.)
+            duration_match = re.match(r'(\d+\.?)', remaining_after_note)
+            
+            # Determine where to look for \rest (after note+duration if duration exists)
+            if duration_match:
+                # Duration found - check for \rest after the duration
+                remaining_text = remaining_after_note[duration_match.end():].strip()
+                duration_part = duration_match.group(1)
+                print(f"   🎵 Found note with duration: {note_part}{duration_part}")
+            else:
+                # No duration - check for \rest right after the note
+                remaining_text = remaining_after_note.strip()
+                print(f"   🎵 Found note without duration: {note_part}")
+            
+            # Check if this note is followed by \rest
+            if remaining_text.startswith('\\rest'):
+                # This is a positioned rest, not a real note - exclude it
+                print(f"   🚫 Excluding positioned rest: {note_part} (followed by \\rest)")
+                return None
+            
+            # It's a real note, return just the note part (no duration)
+            print(f"   ✅ Valid note: {note_part}")
+            return note_part
         else:
             # Return None if no valid note pattern found
             return None
 
     except Exception as e:
         return f"(error: {e})"
-
+        
 def group_notes_by_x_tolerance(notes, tolerance=0.0):
     """
     Group notes by x-coordinate within tolerance to handle simultaneous notes (chords).

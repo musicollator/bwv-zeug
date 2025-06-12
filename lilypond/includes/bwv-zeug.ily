@@ -76,8 +76,8 @@ oneLineLayout = \layout {
   }
 }
 
-staffPerformerToVoiceContextMidi = \midi {
-  % CRITICAL: Move Staff_performer from Staff to Voice context
+% Move Staff_performer from Staff to Voice context
+midiStaffPerformerToVoiceContext = \midi {
   \context {
     \Staff
     \remove "Staff_performer"
@@ -86,7 +86,6 @@ staffPerformerToVoiceContextMidi = \midi {
     \Voice
     \consists "Staff_performer"
   }
-
   \context {
     \Score
     midiChannelMapping = #'instrument
