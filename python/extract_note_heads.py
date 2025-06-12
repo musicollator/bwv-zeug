@@ -393,6 +393,9 @@ def main():
         # Both legacy and modern namespace formats supported
         NS = {'svg': 'http://www.w3.org/2000/svg', 'xlink': 'http://www.w3.org/1999/xlink'}
         root = svg.getroot()
+        
+        # Create parent map for ElementTree (since it doesn't have getparent())
+        parent_map = {c: p for p in root.iter() for c in p}
 
         # =================================================================
         # NOTEHEAD DISCOVERY AND COORDINATE EXTRACTION
@@ -435,12 +438,30 @@ def main():
                         x = float(match.group(1))
                         y = float(match.group(2))
                         
+                        # Check for fermata attribute on the parent group or the anchor itself
+                        fermata_value = None
+                        
+                        # First check if the anchor element itself has data-fermata
+                        data_fermata = a.get("data-fermata")
+                        if data_fermata == "true":
+                            fermata_value = "true"
+                            print(f"   🎵 Found fermata on anchor: {snippet} at ({x}, {y})")
+                        else:
+                            # Check the parent element of the anchor for data-fermata using parent map
+                            parent = parent_map.get(a)
+                            if parent is not None:
+                                data_fermata = parent.get("data-fermata")
+                                if data_fermata == "true":
+                                    fermata_value = "true"
+                                    print(f"   🎵 Found fermata on parent group: {snippet} at ({x}, {y})")                        
+                        
                         # Store the notehead information
                         notehead_data.append({
                             "x": x,
                             "y": y,
                             "href": href,
-                            "snippet": snippet
+                            "snippet": snippet,
+                            "fermata": fermata_value 
                         })
 
         print(f"   📊 Processed {len(root.findall('.//svg:a', NS))} anchor elements")
@@ -496,6 +517,13 @@ def main():
         
         # Use utility function to handle LilyPond notation CSV quoting
         save_dataframe_with_lilypond_csv(notehead_df, output_csv)
+        
+        # Write fermatas only (separate file)
+        fermata_data = [note for note in notehead_data if note.get('fermata') == 'true']
+        if fermata_data:
+            fermata_df = pd.DataFrame(fermata_data)[["snippet", "href", "x", "y"]]  
+            fermata_csv = output_csv.replace('.csv', '_fermata.csv')
+            save_dataframe_with_lilypond_csv(fermata_df, fermata_csv, na_rep=None)        
 
         # =================================================================
         # COMPLETION SUMMARY
