@@ -2,12 +2,21 @@
 """
 remove_unwanted_hrefs.py
 
-Musical Score Link Cleanup Utility
-==================================
+Musical Score Link Cleanup and Normalization Utility
+====================================================
 
-This script removes unwanted hyperlinks from LilyPond-generated SVG files,
-targeting tablature numbers, text annotations, grace notes, and other non-musical
-elements while preserving essential notehead links needed for interactive features.
+This script performs comprehensive href cleaning and normalization for LilyPond-generated 
+SVG files. It serves as the single normalization point for the entire pipeline, ensuring
+all downstream scripts receive clean, consistent data-ref attributes.
+
+Centralized Processing:
+1. NAMESPACE CLEANUP: Convert legacy xlink:href to modern href attributes
+2. HREF CLEANING: Normalize LilyPond references using clean_lilypond_href()
+3. ATTRIBUTE RENAME: Convert href → data-ref for downstream consistency  
+4. SELECTIVE REMOVAL: Remove unwanted links (tablature, grace notes, annotations)
+
+This approach follows "clean once, use everywhere" - all downstream scripts can simply
+read clean data-ref attributes without needing their own cleaning logic.
 
 Problem Addressed:
 LilyPond embeds cross-reference links (href attributes) in ALL clickable elements,
@@ -25,11 +34,13 @@ Selective Link Removal:
 This ensures that musical noteheads and tie relationships always retain their links,
 even if they also contain additional text or rect elements for accidentals, articulations, etc.
 
-Additionally performs namespace cleanup:
-- CONVERTS legacy xlink:href to modern href attributes
-- ELIMINATES useless xlink namespace declarations
+Output Format:
+All preserved links become data-ref attributes with clean, normalized references:
+- Input:  xlink:href="textedit:///work/file.ly:37:20:21"
+- Output: data-ref="file.ly:37:21"
 
-This creates cleaner SVG files optimized for musical score interaction.
+This creates cleaner SVG files optimized for musical score interaction with consistent
+data format throughout the entire processing pipeline.
 """
 
 from xml.etree import ElementTree as ET
@@ -37,6 +48,7 @@ from pathlib import Path
 import re
 import argparse
 import sys
+from _scripts_utils import clean_lilypond_href
 
 # =============================================================================
 # XML NAMESPACE CONFIGURATION
@@ -97,14 +109,15 @@ def is_unwanted_href(href_value: str) -> bool:
 
 def remove_unwanted_hrefs(input_path: Path, output_path: Path):
     """
-    Remove unwanted hyperlinks from SVG musical scores while preserving
-    essential notehead links for interactive features.
+    Comprehensive href cleaning and normalization for SVG musical scores.
     
-    This function processes LilyPond-generated SVG files to:
-    1. Convert legacy xlink:href attributes to modern href attributes
-    2. Remove href attributes from text and rect elements
-    3. Remove href attributes pointing to unwanted LilyPond system files
-    4. Preserve links on actual musical noteheads
+    This function serves as the single normalization point for the entire pipeline,
+    performing all href-related processing in one place:
+    
+    1. NAMESPACE CLEANUP: Convert legacy xlink:href to modern href
+    2. HREF CLEANING: Normalize using clean_lilypond_href()  
+    3. ATTRIBUTE RENAME: Convert href → data-ref
+    4. SELECTIVE REMOVAL: Remove unwanted system file links
     
     Args:
         input_path (Path): Path to input SVG file with embedded links
@@ -112,10 +125,11 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
         
     Process:
     1. Parse SVG file and convert all xlink:href to href (namespace cleanup)
-    2. Locate all anchor (<a>) elements for link processing
-    3. Remove href attributes based on content type and target patterns
-    4. Preserve href attributes on genuine musical notation elements
-    5. Write cleaned SVG with modern href format and no xlink namespace
+    2. Clean and normalize all href content using centralized function
+    3. Rename href attributes to data-ref for pipeline consistency
+    4. Remove href/data-ref attributes based on content type and target patterns
+    5. Preserve data-ref attributes on genuine musical notation elements
+    6. Write cleaned SVG with normalized data-ref attributes
     
     Target Elements for Link Removal:
     - Pure annotations: <text> elements without <path> or tie attributes
@@ -127,6 +141,11 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
     - Tie elements: ANY anchor with data-tie-* attributes (tie relationships)
     - Mixed content: Anchors with both text/rect AND path/tie elements
     - User content: Links that don't match unwanted patterns
+    
+    Output Format:
+    All preserved links become clean data-ref attributes:
+    - Input:  xlink:href="textedit:///work/file.ly:37:20:21"
+    - Output: data-ref="file.ly:37:21"
     """
     
     print(f"🎼 Processing musical score: {input_path.name}")
@@ -148,7 +167,7 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
         return
     
     # =================================================================
-    # NAMESPACE CLEANUP: CONVERT xlink:href TO href
+    # STEP 1: NAMESPACE CLEANUP - CONVERT xlink:href TO href
     # =================================================================
     
     print("   🔧 Converting legacy xlink:href to modern href...")
@@ -170,10 +189,50 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
     print(f"   ✅ Converted {xlink_conversion_count} xlink:href attributes to href")
     
     # =================================================================
-    # LINK ANALYSIS AND REMOVAL
+    # STEP 2: HREF CLEANING AND NORMALIZATION
     # =================================================================
     
-    print("   🔍 Analyzing anchor elements for link removal...")
+    print("   🧹 Cleaning and normalizing href content...")
+    
+    href_cleaned_count = 0
+    
+    # Clean and normalize all href attributes using centralized function
+    for element in svg_root.iter():
+        if "href" in element.attrib:
+            original_href = element.attrib["href"]
+            cleaned_href = clean_lilypond_href(original_href)
+            
+            # Only update if cleaning actually changed something
+            if cleaned_href != original_href:
+                element.attrib["href"] = cleaned_href
+                href_cleaned_count += 1
+    
+    print(f"   ✅ Cleaned {href_cleaned_count} href references")
+    
+    # =================================================================
+    # STEP 3: ATTRIBUTE RENAME - href TO data-ref
+    # =================================================================
+    
+    print("   🔄 Renaming href attributes to data-ref...")
+    
+    href_renamed_count = 0
+    
+    # Rename all href attributes to data-ref for pipeline consistency
+    for element in svg_root.iter():
+        if "href" in element.attrib:
+            # Move href content to data-ref
+            href_value = element.attrib["href"]
+            del element.attrib["href"]
+            element.attrib["data-ref"] = href_value
+            href_renamed_count += 1
+    
+    print(f"   ✅ Renamed {href_renamed_count} href attributes to data-ref")
+    
+    # =================================================================
+    # STEP 4: SELECTIVE LINK REMOVAL
+    # =================================================================
+    
+    print("   🔍 Analyzing anchor elements for selective link removal...")
     
     # Build parent map for walking up the DOM tree
     parent_map = {child: parent for parent in svg_root.iter() for child in parent}
@@ -212,9 +271,9 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
                     break
                 parent = parent_map.get(parent)
         
-        # Check href value for unwanted patterns
-        href_value = anchor_element.attrib.get("href", "")
-        matches_unwanted_pattern = is_unwanted_href(href_value)
+        # Check data-ref value for unwanted patterns (now data-ref instead of href)
+        data_ref_value = anchor_element.attrib.get("data-ref", "")
+        matches_unwanted_pattern = is_unwanted_href(data_ref_value)
         
         # Track statistics for reporting
         if contains_text:
@@ -223,18 +282,18 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
             rect_anchor_count += 1
         if matches_unwanted_pattern:
             pattern_anchor_count += 1
-            if "grace-init.ly" in href_value:
+            if "grace-init.ly" in data_ref_value:
                 grace_note_count += 1
         
-        # CONSERVATIVE LOGIC: Only remove href if:
+        # CONSERVATIVE LOGIC: Only remove data-ref if:
         # 1. It matches unwanted patterns (system files) AND has no tie attributes, OR
         # 2. It contains text/rect BUT NO path elements AND NO tie attributes (pure annotations)
         # PRESERVE: Any anchor with path elements OR tie attributes
         is_pure_annotation = (contains_text or contains_rect) and not contains_path and not has_tie_attributes
         should_remove = (matches_unwanted_pattern and not has_tie_attributes) or is_pure_annotation
         
-        if should_remove and "href" in anchor_element.attrib:
-            del anchor_element.attrib["href"]
+        if should_remove and "data-ref" in anchor_element.attrib:
+            del anchor_element.attrib["data-ref"]
             removed_link_count += 1
                 
     print(f"   📊 Link removal analysis:")
@@ -250,7 +309,7 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
     # CLEANED SVG OUTPUT
     # =================================================================
     
-    print(f"   💾 Writing cleaned SVG to: {output_path.name}")
+    print(f"   💾 Writing normalized SVG to: {output_path.name}")
     
     try:
         # Write cleaned SVG with proper XML declaration and encoding
@@ -265,8 +324,10 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
         cleaned_size = output_path.stat().st_size
         size_change = cleaned_size - original_size
         
-        print(f"✅ Cleanup complete: {output_path}")
-        print(f"   🔗 Converted {xlink_conversion_count} legacy xlink:href to modern href")
+        print(f"✅ Normalization complete: {output_path}")
+        print(f"   🔧 Converted {xlink_conversion_count} legacy xlink:href to modern href")
+        print(f"   🧹 Cleaned {href_cleaned_count} href references")
+        print(f"   🔄 Renamed {href_renamed_count} attributes to data-ref")
         print(f"   🗑️  Removed {removed_link_count} unwanted links")
         print(f"   🎵 Removed {grace_note_count} grace note links")
         print(f"   📏 File size change: {original_size:,} → {cleaned_size:,} bytes ({size_change:+,})")
@@ -274,7 +335,8 @@ def remove_unwanted_hrefs(input_path: Path, output_path: Path):
         # Provide guidance on what was preserved
         preserved_links = total_anchor_count - removed_link_count
         if preserved_links > 0:
-            print(f"   🎵 Preserved {preserved_links} musical notehead links (now using modern href)")
+            print(f"   🎵 Preserved {preserved_links} musical noteheads as clean data-ref attributes")
+            print(f"   🔧 Downstream scripts can now read normalized data-ref attributes")
         
     except Exception as write_error:
         print(f"   ❌ Failed to write output file: {write_error}")
@@ -285,12 +347,22 @@ def setup_argument_parser():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="Remove unwanted hyperlinks from SVG musical scores",
+        description="Comprehensive href cleaning and normalization for SVG musical scores",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python remove_unwanted_hrefs.py -i score.svg -o clean_score.svg
   python remove_unwanted_hrefs.py --input music.svg --output music_clean.svg
+
+Pipeline Integration:
+  This script serves as the single normalization point for the entire pipeline.
+  All downstream scripts can read clean data-ref attributes without additional processing.
+  
+  Processing Steps:
+  1. Namespace cleanup: xlink:href → href
+  2. Content cleaning: "textedit:///work/file.ly:37:20:21" → "file.ly:37:21" 
+  3. Attribute rename: href → data-ref
+  4. Selective removal: Remove unwanted system/annotation links
         """
     )
     
@@ -307,8 +379,8 @@ Examples:
 def main():
     """Main function with command line argument support."""
     
-    print("🚀 Musical Score Link Cleanup Utility")
-    print("=" * 50)
+    print("🚀 Musical Score Link Cleanup and Normalization Utility")
+    print("=" * 70)
     
     # Parse arguments
     args = setup_argument_parser()
@@ -332,7 +404,8 @@ def main():
     try:
         remove_unwanted_hrefs(input_path, output_path)
         print()
-        print("🎉 Link cleanup completed successfully!")
+        print("🎉 Link cleanup and normalization completed successfully!")
+        print("🔧 All downstream scripts can now read clean data-ref attributes")
         return 0
     except Exception as e:
         print(f"❌ Error during processing: {e}")

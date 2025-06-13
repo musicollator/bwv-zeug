@@ -12,7 +12,7 @@ re-articulation. These relationships are crucial for accurate MIDI playback timi
 Key Features:
 - Extracts tie start/end relationships from SVG grob attributes
 - Validates ties go forward in musical time (essential for proper sequencing)
-- Handles both modern href and legacy xlink:href formats
+- Works with normalized SVG input (processed by remove_unwanted_hrefs.py)
 - Merges with existing tie data while removing invalid relationships
 
 MUSICAL CONTEXT:
@@ -22,7 +22,8 @@ first note's off-time extends to cover the second note's duration.
 
 Example: C quarter note tied to C half note = C dotted half note in playback
 
-Updated version that works with both modern href and legacy xlink:href formats.
+Note: This script expects normalized SVG input from upstream processing with clean data-ref
+attributes. No additional href cleaning is performed.
 """
 
 import xml.etree.ElementTree as ET
@@ -44,6 +45,9 @@ def extract_ties_from_svg(svg_file_path):
     
     This approach is more reliable than geometric analysis since it uses
     LilyPond's internal knowledge of musical relationships.
+    
+    The script expects normalized SVG input where href attributes have been
+    converted to data-ref attributes by upstream processing.
     """
     print(f"📖 Reading SVG file: {svg_file_path}")
     
@@ -66,41 +70,37 @@ def extract_ties_from_svg(svg_file_path):
         if tie_role in ['start', 'both']:
             tie_to = element.get('data-tie-to')
             if tie_to:
-                # Get href for this element
-                start_href = find_element_href(element)
-                if start_href:
-                    start_clean = clean_href_path(start_href)
-                    
+                # Get data-ref for this element
+                start_data_ref = find_element_data_ref(element)
+                if start_data_ref:
                     # Find the target element
                     target_id = tie_to[1:] if tie_to.startswith('#') else tie_to
                     target_element = find_element_by_id(root, target_id)
                     
                     if target_element is not None:
-                        end_href = find_element_href(target_element)
-                        if end_href:
-                            end_clean = clean_href_path(end_href)
-                            
+                        end_data_ref = find_element_data_ref(target_element)
+                        if end_data_ref:
                             # VALIDATION: Ensure ties are within the same file and go forward in time
-                            start_file = get_file_from_href(start_clean)
-                            end_file = get_file_from_href(end_clean)
+                            start_file = get_file_from_href(start_data_ref)
+                            end_file = get_file_from_href(end_data_ref)
                             
                             if start_file == end_file:
                                 # Additional validation: ties must go forward in musical time
-                                if is_valid_forward_tie(start_clean, end_clean):
-                                    ties.append((start_clean, end_clean))
-                                    print(f"🔗 Found tie: {start_clean} → {end_clean}")
+                                if is_valid_forward_tie(start_data_ref, end_data_ref):
+                                    ties.append((start_data_ref, end_data_ref))
+                                    print(f"🔗 Found tie: {start_data_ref} → {end_data_ref}")
                                 else:
-                                    print(f"⚠️  Ignoring invalid backward tie: {start_clean} → {end_clean}")
+                                    print(f"⚠️  Ignoring invalid backward tie: {start_data_ref} → {end_data_ref}")
                                     print(f"    (Ties must go forward in musical time)")
                             else:
-                                print(f"⚠️  Ignoring invalid cross-file tie: {start_clean} → {end_clean}")
+                                print(f"⚠️  Ignoring invalid cross-file tie: {start_data_ref} → {end_data_ref}")
                                 print(f"    (Ties cannot span different files: {start_file} vs {end_file})")
                         else:
-                            print(f"⚠️  Could not find href for target element {target_id}")
+                            print(f"⚠️  Could not find data-ref for target element {target_id}")
                     else:
                         print(f"⚠️  Could not find target element with id {target_id}")
                 else:
-                    print(f"⚠️  Could not find href for tie start element")
+                    print(f"⚠️  Could not find data-ref for tie start element")
     
     print(f"✅ Extracted {len(ties)} valid tie relationships")
     return ties
@@ -170,48 +170,32 @@ def find_element_by_id(root, element_id):
             return element
     return None
 
-def find_element_href(element):
+def find_element_data_ref(element):
     """
-    Find href attribute supporting both modern and legacy SVG formats.
+    Find data-ref attribute supporting normalized SVG format.
     
-    COMPATIBILITY ALGORITHM: Dual Format Support
-    ============================================
-    LilyPond SVG output varies between versions:
-    - Modern: href="textedit://..." 
-    - Legacy: xlink:href="textedit://..."
+    This function looks for the normalized data-ref attributes that have been
+    processed by upstream scripts (remove_unwanted_hrefs.py). The data-ref
+    attributes are in clean format without textedit prefixes or namespaces.
     
-    This function checks both formats to ensure compatibility across
-    different LilyPond versions and processing pipelines.
+    Args:
+        element: XML element to search
+        
+    Returns:
+        str or None: The data-ref value if found, None otherwise
     """
-    # Check if element itself has an href (modern format)
-    href = element.get('href')
-    if href:
-        return href
+    # Check if element itself has a data-ref
+    data_ref = element.get('data-ref')
+    if data_ref:
+        return data_ref
     
-    # Check if element itself has an href (legacy format)
-    href = element.get('{http://www.w3.org/1999/xlink}href')
-    if href:
-        return href
-    
-    # Look for href in child elements (both formats)
+    # Look for data-ref in child elements
     for child in element.iter():
-        # Try modern format first
-        child_href = child.get('href')
-        if child_href:
-            return child_href
-            
-        # Try legacy format
-        child_href = child.get('{http://www.w3.org/1999/xlink}href')
-        if child_href:
-            return child_href
+        child_data_ref = child.get('data-ref')
+        if child_data_ref:
+            return child_data_ref
     
     return None
-
-def clean_href_path(href):
-    """Clean href path by removing LilyPond editor artifacts."""
-    # Remove textedit protocol and workspace path
-    cleaned = href.replace("textedit://", "").replace("/work/", "")
-    return cleaned
 
 def load_existing_ties(csv_file_path):
     """Load existing tie relationships from CSV file."""
@@ -292,18 +276,24 @@ def save_ties_to_csv(ties, csv_file_path, existing_ties=None):
 def setup_argument_parser():
     """Setup command line argument parser."""
     parser = argparse.ArgumentParser(
-        description="Extract tie relationships from SVG and update ties CSV",
+        description="Extract tie relationships from normalized SVG and update ties CSV",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python extract_ties.py -i score.svg -o ties.csv
-  python extract_ties.py --input music.svg --output music_ties.csv
+  python extract_ties.py -i score_filtered.svg -o ties.csv
+  python extract_ties.py --input music_filtered.svg --output music_ties.csv
+
+Pipeline Integration:
+  This script expects normalized SVG input from remove_unwanted_hrefs.py with:
+  - Clean data-ref attributes (no textedit prefixes)
+  - No namespace issues
+  - Unwanted links already removed
         """
     )
     
     parser.add_argument('-i', '--input', 
                        required=True,
-                       help='Input SVG file path (required)')
+                       help='Input SVG file path (required, should be filtered/normalized)')
     
     parser.add_argument('-o', '--output',
                        required=True, 
@@ -314,7 +304,7 @@ Examples:
 def main():
     """Main function with project context support."""
     
-    print("🎼 SVG Tie Extractor (Tie Grob Version)")
+    print("🎼 SVG Tie Extractor (Normalized Pipeline)")
     print("=" * 50)
     
     # Parse arguments
@@ -344,6 +334,7 @@ def main():
         
         print()
         print("🎉 Tie extraction completed successfully!")
+        print("🔧 Using normalized data-ref attributes from upstream processing")
         
     except Exception as e:
         print(f"❌ Unexpected error: {e}")

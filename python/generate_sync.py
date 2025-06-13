@@ -18,14 +18,17 @@ WORKFLOW OVERVIEW:
 8. Output cleaned SVG and sync YAML for use in music players
 
 INPUT FILES:
-- SVG: LilyPond-generated notation with embedded timing data attributes
-- JSON: Note timing data with MIDI-style ticks, LilyPond references, and spatial coordinates (x, y)
+- SVG: LilyPond-generated notation with normalized data-ref attributes (from upstream processing)
+- JSON: Note timing data with clean data_ref values in hrefs arrays and spatial coordinates (x, y)
 - YAML: Musical structure configuration (measures, duration, etc.)
-- CSV (optional): Fermata data with href references and positions
+- CSV (optional): Fermata data with clean data_ref references and positions
 
 OUTPUT FILES:
 - Cleaned SVG: Optimized for web with CSS styling and note head z-ordering
 - Sync YAML: Unified timeline with notes, bars, and fermatas for synchronized playback
+
+Note: This script expects normalized input from upstream processing. All data_ref values
+are already clean and no additional processing is performed.
 
 USAGE EXAMPLE:
 python generate_sync.py \
@@ -34,7 +37,6 @@ python generate_sync.py \
   -ic score_config.yaml \
   -os output_score.svg \
   -on sync_data.yaml \
-  -if fermata_data.csv \
   -if fermata_data.csv
 """
 
@@ -66,30 +68,6 @@ ET.register_namespace('xlink', 'http://www.w3.org/1999/xlink')
 # =============================================================================
 # UTILITY FUNCTIONS FOR DATA PROCESSING
 # =============================================================================
-
-def simplify_href(href):
-    """
-    Convert LilyPond textedit references to a simpler format.
-    
-    LilyPond generates href attributes like 'test-main.ly:37:20:21' where:
-    - test-main.ly: source file
-    - 37: line number  
-    - 20: column start
-    - 21: column end
-    
-    We simplify this to 'test-main.ly:37:21' (file:line:end_column)
-    for more concise note references in the sync data.
-    
-    Args:
-        href (str): Original LilyPond href like 'test-main.ly:37:20:21'
-        
-    Returns:
-        str: Simplified href like 'test-main.ly:37:21'
-    """
-    parts = href.split(':')
-    if len(parts) == 4:
-        return f"{parts[0]}:{parts[1]}:{parts[3]}"
-    return href
 
 def parse_fraction(fraction_str):
     """
@@ -142,8 +120,8 @@ def process_fermata_csv(fermata_csv_path, notes_data):
     """
     Process fermata CSV data and match to note timing information using spatial interpolation.
     
-    The CSV contains fermata positions with href references and spatial coordinates.
-    For tied notes that don't have direct href matches, spatial interpolation is used
+    The CSV contains fermata positions with clean data_ref references and spatial coordinates.
+    For tied notes that don't have direct data_ref matches, spatial interpolation is used
     to calculate reasonable tick positions based on x-coordinates.
     
     Args:
@@ -159,14 +137,14 @@ def process_fermata_csv(fermata_csv_path, notes_data):
     
     fermata_items = []
     
-    # Create a mapping from simplified hrefs to notes (including spatial info)
-    href_to_notes = {}
+    # Create a mapping from clean data_refs to notes (including spatial info)
+    # Note: JSON hrefs arrays contain clean data_ref values from upstream processing
+    data_ref_to_notes = {}
     for note in notes_data:
-        for href in note['hrefs']:
-            simplified_href = simplify_href(href)
-            if simplified_href not in href_to_notes:
-                href_to_notes[simplified_href] = []
-            href_to_notes[simplified_href].append(note)
+        for data_ref in note['hrefs']:  # hrefs array contains clean data_ref values
+            if data_ref not in data_ref_to_notes:
+                data_ref_to_notes[data_ref] = []
+            data_ref_to_notes[data_ref].append(note)
     
     print(f"📍 Processing fermata data from {fermata_csv_path}...")
     
@@ -175,27 +153,26 @@ def process_fermata_csv(fermata_csv_path, notes_data):
         reader = csv.DictReader(csvfile)
         
         for row in reader:
-            href = row.get('href', '').strip()
+            data_ref = row.get('data_ref', '').strip()  # Updated: expect data_ref column
             fermata_x = float(row.get('x', 0))
             
-            if not href:
+            if not data_ref:
                 continue
                 
-            # Simplify the href to match our note data format
-            simplified_href = simplify_href(href)
+            # Data_ref is already clean from upstream processing - use directly
             
             # First try direct match
-            if simplified_href in href_to_notes:
+            if data_ref in data_ref_to_notes:
                 # Use the first matching note's on_tick for fermata placement
-                note = href_to_notes[simplified_href][0]
+                note = data_ref_to_notes[data_ref][0]
                 fermata_tick = note['on_tick']
                 
                 fermata_items.append([fermata_tick, None, None, 'fermata'])
-                print(f"  Added fermata at tick {fermata_tick} for {simplified_href}")
+                print(f"  Added fermata at tick {fermata_tick} for {data_ref}")
                 
             else:
                 # No direct match - use spatial interpolation
-                print(f"  No direct match for {simplified_href}, using spatial interpolation...")
+                print(f"  No direct match for {data_ref}, using spatial interpolation...")
                 
                 # Sort notes by x coordinate for interpolation
                 sorted_notes = sorted(notes_data, key=lambda n: n['x'])
@@ -218,9 +195,9 @@ def process_fermata_csv(fermata_csv_path, notes_data):
                 
                 if fermata_tick is not None:
                     fermata_items.append([fermata_tick, None, None, 'fermata'])
-                    print(f"  Added interpolated fermata at tick {fermata_tick} for {simplified_href} (x={fermata_x})")
+                    print(f"  Added interpolated fermata at tick {fermata_tick} for {data_ref} (x={fermata_x})")
                 else:
-                    print(f"  Warning: Could not interpolate fermata position for {simplified_href}")
+                    print(f"  Warning: Could not interpolate fermata position for {data_ref}")
     
     print(f"📍 Processed {len(fermata_items)} fermata items")
     return fermata_items
@@ -245,22 +222,53 @@ def consolidate_fermatas_by_measure(fermata_items, bars):
     
     print(f"📍 Consolidating {len(fermata_items)} fermatas by measure...")
     
+    # First, remove exact duplicates (same tick position)
+    unique_fermatas = []
+    seen_ticks = set()
+    
+    for fermata in fermata_items:
+        tick = fermata[0]
+        if tick not in seen_ticks:
+            unique_fermatas.append(fermata)
+            seen_ticks.add(tick)
+        else:
+            print(f"  Removed duplicate fermata at tick {tick}")
+    
+    if len(unique_fermatas) != len(fermata_items):
+        print(f"  Removed {len(fermata_items) - len(unique_fermatas)} exact duplicates")
+    
     # Create measure boundaries from bar positions
     bar_ticks = sorted([bar['tick'] for bar in bars])
+    print(f"  Bar positions: {bar_ticks}")
     
     # Group fermatas by measure
     measure_fermatas = {}  # measure_index -> list of fermatas in that measure
     
-    for fermata in fermata_items:
+    for fermata in unique_fermatas:
         fermata_tick = fermata[0]
         
         # Find which measure this fermata belongs to
-        measure_index = 0
-        for i, bar_tick in enumerate(bar_ticks):
-            if fermata_tick >= bar_tick:
-                measure_index = i
-            else:
-                break
+        # Handle edge cases: no bar at beginning/end of timeline
+        measure_index = -1  # Default for fermatas before first bar
+        
+        if not bar_ticks:
+            # No bars at all - put all fermatas in measure 0
+            measure_index = 0
+        else:
+            # Check each measure interval
+            for i in range(len(bar_ticks)):
+                bar_start = bar_ticks[i]
+                bar_end = bar_ticks[i + 1] if i + 1 < len(bar_ticks) else float('inf')
+                
+                if bar_start <= fermata_tick < bar_end:
+                    measure_index = i
+                    break
+            
+            # If still -1, fermata is before first bar (pickup measure)
+            if measure_index == -1:
+                measure_index = -1  # Keep as pickup measure
+        
+        print(f"  Fermata at tick {fermata_tick} -> measure {measure_index}")
         
         if measure_index not in measure_fermatas:
             measure_fermatas[measure_index] = []
@@ -270,21 +278,23 @@ def consolidate_fermatas_by_measure(fermata_items, bars):
     consolidated_fermatas = []
     
     for measure_index, fermatas_in_measure in measure_fermatas.items():
+        measure_name = "pickup" if measure_index == -1 else f"measure {measure_index}"
+        
         if len(fermatas_in_measure) == 1:
             # Single fermata - keep as is
             consolidated_fermatas.append(fermatas_in_measure[0])
-            print(f"  Measure {measure_index}: kept single fermata at tick {fermatas_in_measure[0][0]}")
+            print(f"  {measure_name}: kept single fermata at tick {fermatas_in_measure[0][0]}")
         else:
             # Multiple fermatas - keep the one with largest tick (rightmost position)
             latest_fermata = max(fermatas_in_measure, key=lambda f: f[0])
             consolidated_fermatas.append(latest_fermata)
             
             removed_ticks = [f[0] for f in fermatas_in_measure if f != latest_fermata]
-            print(f"  Measure {measure_index}: consolidated {len(fermatas_in_measure)} fermatas")
+            print(f"  {measure_name}: consolidated {len(fermatas_in_measure)} fermatas")
             print(f"    Kept fermata at tick {latest_fermata[0]} (rightmost)")
             print(f"    Removed fermatas at ticks {removed_ticks}")
     
-    print(f"📍 Consolidated to {len(consolidated_fermatas)} fermatas ({len(fermata_items) - len(consolidated_fermatas)} removed)")
+    print(f"📍 Consolidated to {len(consolidated_fermatas)} fermatas ({len(unique_fermatas) - len(consolidated_fermatas)} removed by measure)")
     return consolidated_fermatas
 
 def interpolate_fermata_by_position(fermata_x, before_note, after_note):
@@ -602,12 +612,12 @@ def clean_svg(svg_root):
             del rect.attrib[attr]
     
     # =============================================================================
-    # COALESCE NOTE ELEMENTS
+    # COALESCE NOTE ELEMENTS (UPDATED FOR data-ref)
     # =============================================================================
     
     # Coalesce note <a> elements: move data-ref to contained path and remove wrapper
-    # LilyPond generates: <a href="textedit:///..."><path d="..."/></a>
-    # We convert to: <path d="..." data-ref="simplified-ref"/>
+    # Normalized pipeline generates: <a data-ref="file.ly:37:21"><path d="..."/></a>
+    # We convert to: <path d="..." data-ref="file.ly:37:21"/>
     # This simplifies JavaScript targeting and reduces DOM complexity
     
     # Build a parent map for ElementTree (since getparent() doesn't exist)
@@ -616,21 +626,20 @@ def clean_svg(svg_root):
     # Find all <a> elements and collect them for processing
     elements_to_process = []
     
-    # Find all <a> elements (they should all have href attributes)
+    # Find all <a> elements (they should all have data-ref attributes from upstream processing)
     for a_elem in svg_root.iter():
         if a_elem.tag == 'a' or a_elem.tag.endswith('}a'):  # Handle both namespaced and non-namespaced
-            href = a_elem.get('href')
-            if href and href.startswith('textedit:///work/'):
+            data_ref = a_elem.get('data-ref')
+            if data_ref:  # Updated: look for data-ref instead of href
                 elements_to_process.append(a_elem)
     
     print(f"Found {len(elements_to_process)} <a> elements to process")
     
-# Process each <a> element to extract note reference and flatten structure
+    # Process each <a> element to extract note reference and flatten structure
     for a_elem in elements_to_process:
-        href = a_elem.get('href')
-        # Convert textedit href to simplified reference
-        lily_ref = href.replace('textedit:///work/', '')
-        simplified_ref = simplify_href(lily_ref)
+        data_ref = a_elem.get('data-ref')
+        # Data_ref is already clean from upstream processing - use directly
+        simplified_ref = data_ref  # No additional processing needed
         
         # Count all path elements inside this <a>
         path_elements = []
@@ -641,7 +650,7 @@ def clean_svg(svg_root):
         if len(path_elements) == 1:
             # Single path: current behavior (flatten to path with data-ref)
             path_elem = path_elements[0]
-            print(f"Processing single path: {href} -> {simplified_ref}")
+            print(f"Processing single path: {data_ref} -> {simplified_ref}")
             
             # Create a new path element with the same attributes
             new_path = ET.Element('path')
@@ -667,7 +676,7 @@ def clean_svg(svg_root):
                 
         elif len(path_elements) > 1:
             # Multiple paths: convert <a> to <g> (group) and preserve all children
-            print(f"Processing multiple paths: {href} -> {simplified_ref} ({len(path_elements)} paths)")
+            print(f"Processing multiple paths: {data_ref} -> {simplified_ref} ({len(path_elements)} paths)")
             
             # Create a new group element
             new_group = ET.Element('g')
@@ -691,7 +700,7 @@ def clean_svg(svg_root):
                 print(f"Warning: Could not find parent for <a> element")
                 
         else:
-            print(f"Warning: No path found in <a> element with href {href}")
+            print(f"Warning: No path found in <a> element with data-ref {data_ref}")
             
     print(f"Successfully processed {len(elements_to_process)} note elements")
     
@@ -766,12 +775,12 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     - Timing is accurately synchronized between audio and visual
     
     Args:
-        svg_input (str): Path to LilyPond-generated SVG file
-        notes_input (str): Path to JSON file with note timing data
+        svg_input (str): Path to LilyPond-generated SVG file (normalized by upstream processing)
+        notes_input (str): Path to JSON file with note timing data (contains clean data_ref values)
         config_input (str): Path to YAML file with musical structure
         svg_output (str): Path for cleaned/optimized SVG output
         notes_output (str): Path for unified sync YAML output
-        fermata_input (str, optional): Path to CSV file with fermata data
+        fermata_input (str, optional): Path to CSV file with fermata data (normalized data_ref)
     """
     
     # =============================================================================
@@ -799,46 +808,55 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     meta = extract_meta(notes_data, config_data)
     
     # =============================================================================
-    # PROCESS NOTES WITH CHANNEL INFORMATION
+    # PROCESS NOTES WITH CHANNEL INFORMATION (UPDATED FOR NORMALIZED PIPELINE)
     # =============================================================================
     
     # Process notes into unified flow format with channel information
+    # Note: JSON hrefs arrays already contain clean data_ref values from upstream processing
     # New format: [start_tick, channel, end_tick, hrefs_array]
     # This enables multi-track playback and proper channel routing
     flow_items = []
     for note in notes_data:
-        # Simplify all LilyPond references for cleaner data
-        simplified_hrefs = [simplify_href(href) for href in note['hrefs']]
+        # Data_ref values in hrefs array are already clean from upstream processing - use directly
+        clean_data_refs = note['hrefs']  # No additional cleaning needed
         
         # Extract channel information (should be present in JSON)
         channel = note.get('channel', 0)  # Default to channel 0 if missing
         
         # Create flow item: [start_tick, channel, end_tick, hrefs]
-        flow_items.append([note['on_tick'], channel, note['off_tick'], simplified_hrefs])
+        flow_items.append([note['on_tick'], channel, note['off_tick'], clean_data_refs])
         
         # Debug: print first few notes to verify channel data integrity
         if len(flow_items) <= 3:
-            print(f"  Note: ticks {note['on_tick']}-{note['off_tick']}, channel {channel}, hrefs {simplified_hrefs}")
+            print(f"  Note: ticks {note['on_tick']}-{note['off_tick']}, channel {channel}, data_refs {clean_data_refs}")
     
     print(f"Processed {len(flow_items)} notes with channel information")
+    print("🔧 Using clean data_ref values from upstream processing - no additional cleaning performed")
     
     # =============================================================================
-    # PROCESS FERMATA DATA
+    # EXTRACT BAR TIMING FROM SVG (MOVED BEFORE FERMATA PROCESSING)
+    # =============================================================================
+    
+    # Extract and process bars from SVG, converting to tick timeline
+    # This must come before fermata consolidation since consolidation needs bar positions
+    bars = extract_bars_from_svg(root, meta, config_data)
+    
+    # =============================================================================
+    # PROCESS FERMATA DATA WITH CONSOLIDATION
     # =============================================================================
     
     # Process fermata CSV if provided
     fermata_items = process_fermata_csv(fermata_input, notes_data)
     
-    # Add fermata events to flow: [tick, None, None, 'fermata']
+    # CONSOLIDATE fermatas by measure (keeping only the rightmost fermata per measure)
+    if fermata_items:
+        print(f"🎯 Consolidating fermatas by measure...")
+        fermata_items = consolidate_fermatas_by_measure(fermata_items, bars)
+    
+    # Add consolidated fermata events to flow: [tick, None, None, 'fermata']
     flow_items.extend(fermata_items)
     
-    # =============================================================================
-    # EXTRACT BAR TIMING FROM SVG
-    # =============================================================================
-    
-    # Extract and process bars from SVG, converting to tick timeline
-    bars = extract_bars_from_svg(root, meta, config_data)
-    # Add bar events to flow: [tick, None, bar_number, 'bar']
+    # Add bar events to flow: [tick, None, bar_number, 'bar'] 
     for bar in bars:
         flow_items.append([bar['tick'], None, bar['number'], 'bar'])
     
@@ -935,6 +953,8 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
         print(f"📊 Channel distribution in flow: {channel_counts}")
     else:
         print("⚠️  No channel data found in output")
+    
+    print("🔧 All processing completed using normalized pipeline - no cleaning performed")
 
 # =============================================================================
 # COMMAND LINE INTERFACE
@@ -948,25 +968,25 @@ def main():
     Most parameters are required to ensure proper file processing, with optional fermata support
     using spatial interpolation for tied notes.
     """
-    parser = argparse.ArgumentParser(description='Generate unified sync format with optional fermata support (spatial interpolation)')
+    parser = argparse.ArgumentParser(description='Generate unified sync format with optional fermata support (normalized pipeline)')
     
     # Required inputs - no defaults to ensure explicit file specification
     parser.add_argument('-is', '--svg-input', required=True, 
-                       help='Input SVG file (e.g. test_optimized.svg)')
+                       help='Input SVG file with normalized data-ref attributes (e.g. test_optimized.svg)')
     parser.add_argument('-in', '--notes-input', required=True,
-                       help='Input notes JSON with spatial coordinates (e.g. test_json_notes.json)')  
+                       help='Input notes JSON with clean data_ref values in hrefs arrays (e.g. test_json_notes.json)')  
     parser.add_argument('-ic', '--config-input', required=True,
                        help='Input config YAML (e.g. test.config.yaml)')
     
     # Required outputs - no defaults to prevent accidental overwrites
     parser.add_argument('-os', '--svg-output', required=True,
-                       help='Output SVG with IDs (e.g. test.svg)')
+                       help='Output SVG with data-ref attributes (e.g. test.svg)')
     parser.add_argument('-on', '--notes-output', required=True, 
                        help='Output sync YAML (e.g. test.yaml)')
     
     # Optional inputs for enhanced functionality
     parser.add_argument('-if', '--fermata-input', required=False,
-                       help='Input fermata CSV (e.g. test_note_heads_fermata.csv)')
+                       help='Input fermata CSV with clean data_ref values (e.g. test_note_heads_fermata.csv)')
     
     args = parser.parse_args()
     

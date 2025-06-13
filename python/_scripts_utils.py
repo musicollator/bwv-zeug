@@ -161,6 +161,49 @@ def setup_project_context(script_purpose, input_pattern=None, output_pattern=Non
     return args
 
 # =============================================================================
+# LILYPOND HREF CLEANING UTILITIES
+# =============================================================================
+
+def clean_lilypond_href(href):
+    """
+    Clean and simplify LilyPond href references to a consistent format.
+    
+    This function consolidates all href cleaning operations used throughout
+    the pipeline to ensure consistency. It handles both textedit prefix
+    removal and column format simplification.
+    
+    Process:
+    1. Remove textedit protocol prefix: "textedit://" -> ""
+    2. Remove workspace path: "/work/" -> ""  
+    3. Simplify column format: "file.ly:line:start:end" -> "file.ly:line:end"
+    
+    Args:
+        href (str): Original LilyPond href reference
+        
+    Returns:
+        str: Cleaned and simplified href reference
+        
+    Examples:
+        "textedit:///work/test.ly:37:20:21" -> "test.ly:37:21"
+        "test.ly:37:20:21" -> "test.ly:37:21"
+        "file.ly:10:5" -> "file.ly:10:5" (no change needed)
+    """
+    if not href:
+        return href
+        
+    # Step 1: Remove textedit protocol and workspace path
+    cleaned = href.replace("textedit://", "").replace("/work/", "")
+    
+    # Step 2: Simplify column format (4 parts -> 3 parts)
+    parts = cleaned.split(':')
+    if len(parts) == 4:
+        # Convert "file.ly:line:start_col:end_col" -> "file.ly:line:end_col"
+        return f"{parts[0]}:{parts[1]}:{parts[3]}"
+    
+    # Return as-is if not 4-part format
+    return cleaned
+
+# =============================================================================
 # MUSICAL NOTATION CONVERSION UTILITIES
 # =============================================================================
 

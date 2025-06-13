@@ -12,7 +12,7 @@ animated score following applications.
 
 Process Overview:
 1. Parse LilyPond-generated SVG to find clickable notehead elements
-2. Extract pitch information from LilyPond source code via href links (file paths embedded in href)
+2. Extract pitch information from LilyPond source code via data-ref links (normalized by upstream processing)
 3. Determine visual coordinates for each notehead
 4. Group simultaneous notes (chords) using x-coordinate tolerance
 5. Create sorted dataset ordered by visual appearance (left-to-right, top-to-bottom)
@@ -25,12 +25,15 @@ Configuration System:
 - This allows per-project tolerance tuning without complicating the build system
 
 Input Files:
-- SVG file with embedded LilyPond cross-references (href contains .ly file paths)
+- SVG file with normalized data-ref attributes (processed by remove_unwanted_hrefs.py)
 - Optional: Project YAML config file (PROJECT_NAME.yaml) for tolerance setting
 
 Output:
-- CSV file with notehead coordinates, pitches, and reference links in format: snippet,href,x,y
+- CSV file with notehead coordinates, pitches, and reference links in format: snippet,data_ref,x,y
 - Optional fermata CSV file with fermata positions only
+
+Note: This script expects normalized SVG input from upstream processing with clean data-ref
+attributes. No additional href cleaning is performed.
 """
 
 import re
@@ -105,35 +108,32 @@ note_regex = re.compile(r"""
         """, re.VERBOSE)
 
 # =============================================================================
-# LILYPOND SOURCE CODE PARSING FUNCTION - V2
+# LILYPOND SOURCE CODE PARSING FUNCTION - V2 (UPDATED FOR NORMALIZED DATA-REF)
 # =============================================================================
 
-def extract_text_from_href(href):
+def extract_text_from_data_ref(data_ref):
     """
-    Extract LilyPond pitch notation from cross-reference URLs.
+    Extract LilyPond pitch notation from normalized data-ref values.
+    
+    This function processes data-ref values that have been normalized by upstream
+    processing (remove_unwanted_hrefs.py). The data-ref format is already clean:
+    "file.ly:line:column" (no textedit prefix, no workspace path).
     
     V2 IMPROVEMENTS:
     - Properly handles duration in note regex (d''2, cis'4., etc.)
     - Detects and excludes notes followed by \rest (positioned rests)
     - Supports both "b\rest" and "b \rest" formats
-    
-    LilyPond embeds "textedit" URLs in SVG that point back to specific
-    locations in the source .ly file. These URLs encode file path, line
-    number, and column position, allowing us to extract the exact pitch
-    notation that generated each visual notehead.
-    
-    This function now properly excludes notes followed by \rest, which
-    represent positioned rests rather than actual notes.
+    - Works with normalized data-ref input (no additional cleaning needed)
     
     Args:
-        href (str): TextEdit URL from SVG (e.g., "textedit:///work/file.ly:25:10")
+        data_ref (str): Normalized data-ref value (e.g., "file.ly:25:10")
         
     Returns:
         str or None: LilyPond pitch notation (e.g., "cis'") or None if not found
                      or if the note is followed by \rest
         
-    URL Format: textedit:///work/filepath:line:column
-    - filepath: Path to .ly source file (extracted from href)
+    Data-ref Format: file.ly:line:column
+    - file.ly: Path to .ly source file
     - line: 1-based line number  
     - column: 1-based character position
     
@@ -148,19 +148,19 @@ def extract_text_from_href(href):
     - "bes," -> "bes," (note with octave)
     """
     try:
-        # Clean up URL format - remove textedit protocol prefix
-        if href.startswith("textedit:///work/"):
-            href = href[len("textedit:///work/"):]
-        else:
-            return "(invalid href format)"
-
-        # Parse URL components: "file.ly:line:column"
-        parts = href.split(":")
+        # Parse normalized data-ref format: "file.ly:line:column"
+        if not data_ref:
+            return "(empty data-ref)"
+            
+        parts = data_ref.split(":")
+        if len(parts) < 3:
+            return "(invalid data-ref format)"
+            
         file_path = parts[0]
         line = int(parts[1]) - 1      # Convert to 0-based indexing
-        col_start = int(parts[2])     # 1-based column position
+        col_start = int(parts[2]) - 1    # Convert LilyPond 1-based column to Python 0-based index
 
-        # Read the specific LilyPond source file referenced in the href
+        # Read the specific LilyPond source file referenced in the data-ref
         with open(file_path, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -262,30 +262,25 @@ def group_notes_by_x_tolerance(notes, tolerance=0.0):
     
     return result
 
-def find_href_in_anchor(anchor_element, ns):
+def find_data_ref_in_anchor(anchor_element, ns):
     """
-    Find href attribute in anchor element, supporting both modern and legacy formats.
+    Find data-ref attribute in anchor element (normalized format).
     
-    LilyPond SVG files may use either modern 'href' attributes or legacy 'xlink:href'
-    attributes depending on the LilyPond version and processing pipeline. This function
-    checks both formats to ensure compatibility.
+    This function looks for the normalized data-ref attributes that have been
+    processed by upstream scripts (remove_unwanted_hrefs.py). The data-ref
+    attributes are in clean format without textedit prefixes or namespaces.
     
     Args:
         anchor_element: XML element representing the <a> tag
-        ns: Namespace dictionary for XML queries
+        ns: Namespace dictionary for XML queries (for compatibility)
         
     Returns:
-        str or None: The href value if found, None otherwise
+        str or None: The data-ref value if found, None otherwise
     """
-    # Try modern href format first
-    href = anchor_element.get('href')
-    if href:
-        return href
-    
-    # Try legacy xlink:href format
-    href = anchor_element.get(f"{{{ns['xlink']}}}href")
-    if href:
-        return href
+    # Look for normalized data-ref attribute
+    data_ref = anchor_element.get('data-ref')
+    if data_ref:
+        return data_ref
     
     return None
 
@@ -298,15 +293,15 @@ def setup_argument_parser():
     the appropriate tolerance value for chord grouping.
     """
     parser = argparse.ArgumentParser(
-        description="Extract notehead positions and pitch information from SVG files",
+        description="Extract notehead positions and pitch information from normalized SVG files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Basic extraction:
-  python extract_note_heads.py -i score.svg -o noteheads.csv -of fermatas.csv
+  python extract_note_heads.py -i score_filtered.svg -o noteheads.csv -of fermatas.csv
   
   # With custom tolerance:
-  python extract_note_heads.py -i score.svg -o noteheads.csv -of fermatas.csv --tolerance 3.0
+  python extract_note_heads.py -i score_filtered.svg -o noteheads.csv -of fermatas.csv --tolerance 3.0
 
 Configuration Files:
   Create PROJECT_NAME.yaml in the working directory to set project-specific tolerance:
@@ -316,12 +311,18 @@ Configuration Files:
   
   # Example bwv543.yaml:
   tolerance: 3.0
+
+Pipeline Integration:
+  This script expects normalized SVG input from remove_unwanted_hrefs.py with:
+  - Clean data-ref attributes (no textedit prefixes)
+  - No namespace issues  
+  - Unwanted links already removed
         """
     )
     
     parser.add_argument('-i', '--input', 
                        required=True,
-                       help='Input SVG file path (required)')
+                       help='Input SVG file path (required, should be filtered/normalized)')
     
     parser.add_argument('-o', '--output',
                        required=True, 
@@ -347,7 +348,7 @@ def main():
     intelligent tolerance configuration:
     1. Parse command line arguments
     2. Determine tolerance (CLI override > project config > default)
-    3. Process SVG file to extract noteheads
+    3. Process normalized SVG file to extract noteheads
     4. Apply tolerance-based chord grouping
     5. Export results to CSV
     """
@@ -383,7 +384,7 @@ def main():
     # =================================================================
 
     try:
-        print("🔍 Loading and parsing SVG file...")
+        print("🔍 Loading and parsing normalized SVG file...")
 
         # Verify SVG file exists
         if not os.path.exists(svg_file):
@@ -405,22 +406,22 @@ def main():
         # NOTEHEAD DISCOVERY AND COORDINATE EXTRACTION
         # =================================================================
 
-        print("📍 Extracting notehead positions and pitch data...")
+        print("📍 Extracting notehead positions and pitch data from normalized data-ref attributes...")
 
         # Storage for discovered noteheads
         notehead_data = []
 
         # Find all clickable <a> elements (these contain the noteheads)
-        # These anchors have href attributes pointing back to LilyPond source
+        # These anchors now have data-ref attributes from upstream processing
         for a in root.findall(".//svg:a", NS):
-            # Get the cross-reference URL (supporting both modern and legacy formats)
-            href = find_href_in_anchor(a, NS)
+            # Get the normalized data-ref value
+            data_ref = find_data_ref_in_anchor(a, NS)
             
-            if not href:
-                continue  # Skip elements without href (not musical content)
+            if not data_ref:
+                continue  # Skip elements without data-ref (not musical content)
             
-            # Extract pitch information from the href by parsing LilyPond source
-            snippet = extract_text_from_href(href)
+            # Extract pitch information from the data-ref by parsing LilyPond source
+            snippet = extract_text_from_data_ref(data_ref)
 
             # Skip if we couldn't extract valid pitch information
             if snippet is not None:
@@ -435,7 +436,7 @@ def main():
                     match = re.search(r"translate\(([-\d.]+)[ ,]+([-\d.]+)", transform)
                     
                     if not match:
-                        print(f"⚠️  No transform found for notehead: {href} [{snippet}]")
+                        print(f"⚠️  No transform found for notehead: {data_ref} [{snippet}]")
                     
                     if match:
                         # Extract and convert coordinates
@@ -463,7 +464,7 @@ def main():
                         notehead_data.append({
                             "x": x,
                             "y": y,
-                            "href": href,
+                            "data_ref": data_ref,  # Store normalized data-ref instead of href
                             "snippet": snippet,
                             "fermata": fermata_value  # None for non-fermata notes, "true" for fermata notes
                         })
@@ -512,8 +513,8 @@ def main():
         # Convert notehead data to DataFrame for consistent CSV handling
         notehead_df = pd.DataFrame(notehead_data)
         
-        # Reorder columns to match requested format: snippet, href, x, y
-        notehead_df = notehead_df[["snippet", "href", "x", "y"]]
+        # Reorder columns to match requested format: snippet, data_ref, x, y
+        notehead_df = notehead_df[["snippet", "data_ref", "x", "y"]]
         
         # Round coordinates to 3 decimal precision for consistency
         notehead_df["x"] = notehead_df["x"].round(3)
@@ -525,12 +526,12 @@ def main():
         # Write fermatas only (separate file)
         fermata_data = [note for note in notehead_data if note.get('fermata') == 'true']
         if fermata_data:
-            fermata_df = pd.DataFrame(fermata_data)[["snippet", "href", "x", "y"]]  
+            fermata_df = pd.DataFrame(fermata_data)[["snippet", "data_ref", "x", "y"]]  
             save_dataframe_with_lilypond_csv(fermata_df, fermata_csv)
             print(f"🎯 Fermata file created: {fermata_csv} ({len(fermata_data)} fermatas)")
         else:
             # Create empty fermata file
-            empty_df = pd.DataFrame(columns=["snippet", "href", "x", "y"])
+            empty_df = pd.DataFrame(columns=["snippet", "data_ref", "x", "y"])
             save_dataframe_with_lilypond_csv(empty_df, fermata_csv)
             print(f"🎯 Empty fermata file created: {fermata_csv} (no fermatas found)")
 
@@ -560,6 +561,7 @@ def main():
         print()
         print("🎉 Notehead extraction completed successfully!")
         print(f"🎯 Ready for alignment with MIDI data in next pipeline stage")
+        print(f"🔧 Using normalized data-ref attributes from upstream processing")
         
         # Configuration guidance for user
         if args.tolerance is None:

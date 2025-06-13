@@ -12,7 +12,7 @@ group information directly in the CSV.
 
 Input Files Required:
 - MIDI timing and pitch data CSV with tick format (on_tick/off_tick columns)
-- Squashed SVG notehead data CSV (with embedded tied_hrefs column)
+- Squashed SVG notehead data CSV (with embedded tied_data_refs column and normalized data_ref)
 
 Output:
 - Aligned notes with tick timing, pitch, SVG references, and spatial coordinates JSON
@@ -22,9 +22,12 @@ corresponding MIDI events for precise animated score following. Spatial coordina
 are preserved for downstream fermata interpolation and visual positioning.
 
 Pipeline:
-1. extract_note_heads.py (extracts all noteheads from SVG)
+1. extract_note_heads.py (extracts all noteheads from SVG with data_ref)
 2. squash-tied-note-heads.py (removes secondaries, embeds tie groups in primaries)
 3. align-data.py (this script - alignment with tick timing and spatial data preserved)
+
+Note: This script expects normalized input from upstream processing. All data_ref
+values are already clean and no additional processing is performed.
 """
 
 import pandas as pd
@@ -43,6 +46,13 @@ def setup_argument_parser():
 Examples:
   python align-data.py -im notes.csv -is squashed_heads.csv -o output.json
   python align-data.py --input-midi bwv1006_note_events.csv --input-svg bwv1006_squashed.csv --output exports/bwv1006_json_notes.json
+
+Pipeline Integration:
+  This script expects normalized input from upstream processing:
+  - MIDI CSV with tick format (on_tick/off_tick columns)
+  - SVG CSV with clean data_ref column (no textedit prefixes)
+  - SVG CSV with embedded tied_data_refs (pre-processed by squash-tied-note-heads.py)
+  - Spatial coordinates (x, y) preserved for downstream processing
 
 Note: The SVG noteheads CSV should be pre-processed with squash-tied-note-heads.py
       The MIDI CSV must use tick format (on_tick/off_tick columns)
@@ -77,8 +87,8 @@ def make_json_serializable(obj):
 def main():
     """Main function with command line argument support."""
     
-    print("🎯 Musical Score Alignment Pipeline")
-    print("=" * 50)
+    print("🎯 Musical Score Alignment Pipeline (Normalized)")
+    print("=" * 60)
     
     # Parse arguments
     args = setup_argument_parser()
@@ -108,17 +118,18 @@ def main():
         print(f"   📊 Loaded {len(midi_df)} MIDI events")
         print(f"   📊 Loaded {len(svg_df)} squashed SVG noteheads")
 
-        # Verify expected CSV formats (tick format only)
+        # Verify expected CSV formats (updated for normalized pipeline)
         expected_midi_columns = {"pitch", "midi", "channel", "on_tick", "off_tick"}
         if not expected_midi_columns.issubset(set(midi_df.columns)):
             raise ValueError(f"MIDI CSV missing required columns for tick format. Expected: {expected_midi_columns}, Found: {set(midi_df.columns)}")
 
-        expected_svg_columns = {"snippet", "href", "x", "y", "tied_hrefs"}
+        expected_svg_columns = {"snippet", "data_ref", "x", "y", "tied_data_refs"}
         if not expected_svg_columns.issubset(set(svg_df.columns)):
             raise ValueError(f"SVG CSV missing required columns. Expected: {expected_svg_columns}, Found: {set(svg_df.columns)}")
 
         print("   🕒 Using tick timing format")
         print("   📐 Preserving spatial coordinates (x, y)")
+        print("   🔧 Using normalized data_ref attributes from upstream processing")
 
         # =================================================================
         # STEP 1: SORT MIDI DATA ONLY (PRESERVE SVG ORDER)
@@ -175,7 +186,7 @@ def main():
                 print(f"⚠️  Pitch mismatch at position {index}:")
                 print(f"    midi_pitch_num: '{midi_pitch_num}' MIDI: '{midi_lilypond_pitch}' (MIDI number: {midi_row.midi})")
                 print(f"    svg_pitch_num : '{svg_pitch_num}' SVG: '{svg_lilypond_pitch}'")
-                print(f"    SVG href: {svg_row.href}")
+                print(f"    SVG data_ref: {svg_row.data_ref}")
                 mismatch_count += 1
                 
                 # Show some context around the mismatch
@@ -196,25 +207,25 @@ def main():
                 
                 sys.exit(1)  # Stop on first mismatch for debugging
 
-            # Build complete tie group from embedded tie data
-            complete_hrefs = [svg_row.href]  # Start with primary href
+            # Build complete tie group from embedded tie data (normalized)
+            complete_data_refs = [svg_row.data_ref]  # Start with primary data_ref
             
-            # Add tied secondary hrefs if they exist
+            # Add tied secondary data_refs if they exist
             # Handle both empty strings and NaN values from pandas
-            tied_hrefs_value = svg_row.tied_hrefs
-            if pd.notna(tied_hrefs_value) and str(tied_hrefs_value).strip():
-                secondary_hrefs = str(tied_hrefs_value).split("|")
-                complete_hrefs.extend(secondary_hrefs)
+            tied_data_refs_value = svg_row.tied_data_refs
+            if pd.notna(tied_data_refs_value) and str(tied_data_refs_value).strip():
+                secondary_data_refs = str(tied_data_refs_value).split("|")
+                complete_data_refs.extend(secondary_data_refs)
 
             # Create aligned note entry with tick timing and spatial coordinates
             aligned_note = {                                                                  
-                "hrefs": complete_hrefs,                                    # All SVG noteheads for this musical event
-                "on_tick": make_json_serializable(midi_row.on_tick),        # Start time in ticks
-                "off_tick": make_json_serializable(midi_row.off_tick),      # End time in ticks
-                "pitch": make_json_serializable(midi_row.midi),             # MIDI pitch number (for audio playback)
-                "channel": make_json_serializable(midi_row.channel),        # MIDI channel (for multi-voice music)
-                "x": make_json_serializable(svg_row.x),                     # X coordinate from SVG (for spatial interpolation)
-                "y": make_json_serializable(svg_row.y)                      # Y coordinate from SVG (for future use)
+                "hrefs": complete_data_refs,                                   # All SVG noteheads for this musical event (normalized)
+                "on_tick": make_json_serializable(midi_row.on_tick),           # Start time in ticks
+                "off_tick": make_json_serializable(midi_row.off_tick),         # End time in ticks
+                "pitch": make_json_serializable(midi_row.midi),                # MIDI pitch number (for audio playback)
+                "channel": make_json_serializable(midi_row.channel),           # MIDI channel (for multi-voice music)
+                "x": make_json_serializable(svg_row.x),                        # X coordinate from SVG (for spatial interpolation)
+                "y": make_json_serializable(svg_row.y)                         # Y coordinate from SVG (for future use)
             }                                                                  
             
             aligned_notes.append(aligned_note)
@@ -242,16 +253,17 @@ def main():
 
         # Summary statistics
         note_count = len(aligned_notes)
-        total_hrefs = sum(len(note["hrefs"]) for note in aligned_notes)
-        tie_count = total_hrefs - note_count
+        total_data_refs = sum(len(note["hrefs"]) for note in aligned_notes)
+        tie_count = total_data_refs - note_count
         notes_with_ties = sum(1 for note in aligned_notes if len(note["hrefs"]) > 1)
 
         print(f"✅ Successfully aligned {note_count} musical events")
-        print(f"   📊 {total_hrefs} total SVG noteheads")
+        print(f"   📊 {total_data_refs} total SVG noteheads")
         print(f"   🔗 {tie_count} tied noteheads")
         print(f"   🎵 {notes_with_ties} notes have ties")
         print(f"   🕒 Timing format: ticks (preserved)")
         print(f"   📐 Spatial coordinates: x, y (preserved)")
+        print(f"   🔧 Using normalized data_ref attributes")
         print(f"   💾 Saved: {output_json}")
 
         if mismatch_count > 0:
@@ -259,6 +271,7 @@ def main():
 
         print()
         print("🎉 Alignment completed successfully!")
+        print("🔧 All data processed using normalized pipeline - no cleaning performed")
 
     except FileNotFoundError as e:
         print(f"❌ File error: {e}")
