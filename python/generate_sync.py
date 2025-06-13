@@ -8,22 +8,24 @@ visual elements from SVG notation to generate files suitable for real-time music
 with visual highlighting.
 
 WORKFLOW OVERVIEW:
-1. Load input files (SVG notation, JSON notes with timing, YAML config)
+1. Load input files (SVG notation, JSON notes with timing, YAML config, optional fermata CSV)
 2. Extract timing metadata and calculate tick-to-second conversions
 3. Process musical notes with channel information for multi-track playback
 4. Extract bar positions and timing from SVG elements
-5. Clean and optimize SVG for web playback (remove unnecessary attributes, add CSS)
-6. Generate unified sync data combining notes and bars in chronological order
-7. Output cleaned SVG and sync YAML for use in music players
+5. Process fermata data and match to note timing
+6. Clean and optimize SVG for web playback (remove unnecessary attributes, add CSS)
+7. Generate unified sync data combining notes, bars, and fermatas in chronological order
+8. Output cleaned SVG and sync YAML for use in music players
 
 INPUT FILES:
 - SVG: LilyPond-generated notation with embedded timing data attributes
-- JSON: Note timing data with MIDI-style ticks and LilyPond references
+- JSON: Note timing data with MIDI-style ticks, LilyPond references, and spatial coordinates (x, y)
 - YAML: Musical structure configuration (measures, duration, etc.)
+- CSV (optional): Fermata data with href references and positions
 
 OUTPUT FILES:
 - Cleaned SVG: Optimized for web with CSS styling and note head z-ordering
-- Sync YAML: Unified timeline with notes and bars for synchronized playback
+- Sync YAML: Unified timeline with notes, bars, and fermatas for synchronized playback
 
 USAGE EXAMPLE:
 python generate_sync.py \
@@ -31,13 +33,16 @@ python generate_sync.py \
   -in timing_notes.json \
   -ic score_config.yaml \
   -os output_score.svg \
-  -on sync_data.yaml
+  -on sync_data.yaml \
+  -if fermata_data.csv \
+  -if fermata_data.csv
 """
 
 import argparse
 import json
 import yaml
 import xml.etree.ElementTree as ET
+import csv
 from pathlib import Path
 
 ### python ../../../python/generate_sync.py \
@@ -45,7 +50,8 @@ from pathlib import Path
 ###   -in test_json_notes.json \
 ###   -ic test.config.yaml \
 ###   -os test.svg \
-###   -on test.yaml
+###   -on test.yaml \
+###   -if test_note_heads_fermata.csv
 
 # =============================================================================
 # SVG NAMESPACE CONFIGURATION
@@ -127,6 +133,202 @@ def collect_unique_moments(svg_root):
             moments.add(moment)
     
     return sorted(moments)
+
+# =============================================================================
+# FERMATA PROCESSING
+# =============================================================================
+
+def process_fermata_csv(fermata_csv_path, notes_data):
+    """
+    Process fermata CSV data and match to note timing information using spatial interpolation.
+    
+    The CSV contains fermata positions with href references and spatial coordinates.
+    For tied notes that don't have direct href matches, spatial interpolation is used
+    to calculate reasonable tick positions based on x-coordinates.
+    
+    Args:
+        fermata_csv_path (str): Path to fermata CSV file
+        notes_data (list): List of note dictionaries from JSON input (with x, y coordinates)
+        
+    Returns:
+        list: Fermata flow items in format [tick, None, None, 'fermata']
+    """
+    if not fermata_csv_path or not Path(fermata_csv_path).exists():
+        print("No fermata CSV provided or file not found")
+        return []
+    
+    fermata_items = []
+    
+    # Create a mapping from simplified hrefs to notes (including spatial info)
+    href_to_notes = {}
+    for note in notes_data:
+        for href in note['hrefs']:
+            simplified_href = simplify_href(href)
+            if simplified_href not in href_to_notes:
+                href_to_notes[simplified_href] = []
+            href_to_notes[simplified_href].append(note)
+    
+    print(f"📍 Processing fermata data from {fermata_csv_path}...")
+    
+    # Read and process fermata CSV
+    with open(fermata_csv_path, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        
+        for row in reader:
+            href = row.get('href', '').strip()
+            fermata_x = float(row.get('x', 0))
+            
+            if not href:
+                continue
+                
+            # Simplify the href to match our note data format
+            simplified_href = simplify_href(href)
+            
+            # First try direct match
+            if simplified_href in href_to_notes:
+                # Use the first matching note's on_tick for fermata placement
+                note = href_to_notes[simplified_href][0]
+                fermata_tick = note['on_tick']
+                
+                fermata_items.append([fermata_tick, None, None, 'fermata'])
+                print(f"  Added fermata at tick {fermata_tick} for {simplified_href}")
+                
+            else:
+                # No direct match - use spatial interpolation
+                print(f"  No direct match for {simplified_href}, using spatial interpolation...")
+                
+                # Sort notes by x coordinate for interpolation
+                sorted_notes = sorted(notes_data, key=lambda n: n['x'])
+                
+                # Find notes before and after the fermata x position
+                before_note = None
+                after_note = None
+                
+                for note in sorted_notes:
+                    if note['x'] <= fermata_x:
+                        before_note = note
+                    elif note['x'] > fermata_x and after_note is None:
+                        after_note = note
+                        break
+                
+                # Interpolate tick position
+                fermata_tick = interpolate_fermata_by_position(
+                    fermata_x, before_note, after_note
+                )
+                
+                if fermata_tick is not None:
+                    fermata_items.append([fermata_tick, None, None, 'fermata'])
+                    print(f"  Added interpolated fermata at tick {fermata_tick} for {simplified_href} (x={fermata_x})")
+                else:
+                    print(f"  Warning: Could not interpolate fermata position for {simplified_href}")
+    
+    print(f"📍 Processed {len(fermata_items)} fermata items")
+    return fermata_items
+
+def consolidate_fermatas_by_measure(fermata_items, bars):
+    """
+    Consolidate multiple fermatas within the same measure into a single fermata.
+    
+    Musical logic: Multiple fermatas in the same measure represent a single 
+    musical gesture. Keep only the fermata with the largest tick position
+    (rightmost/latest in the measure).
+    
+    Args:
+        fermata_items (list): List of fermata items [tick, None, None, 'fermata']
+        bars (list): List of bar items with tick positions
+        
+    Returns:
+        list: Consolidated fermata items with one fermata per measure max
+    """
+    if not fermata_items or not bars:
+        return fermata_items
+    
+    print(f"📍 Consolidating {len(fermata_items)} fermatas by measure...")
+    
+    # Create measure boundaries from bar positions
+    bar_ticks = sorted([bar['tick'] for bar in bars])
+    
+    # Group fermatas by measure
+    measure_fermatas = {}  # measure_index -> list of fermatas in that measure
+    
+    for fermata in fermata_items:
+        fermata_tick = fermata[0]
+        
+        # Find which measure this fermata belongs to
+        measure_index = 0
+        for i, bar_tick in enumerate(bar_ticks):
+            if fermata_tick >= bar_tick:
+                measure_index = i
+            else:
+                break
+        
+        if measure_index not in measure_fermatas:
+            measure_fermatas[measure_index] = []
+        measure_fermatas[measure_index].append(fermata)
+    
+    # Consolidate: keep only the fermata with largest tick in each measure
+    consolidated_fermatas = []
+    
+    for measure_index, fermatas_in_measure in measure_fermatas.items():
+        if len(fermatas_in_measure) == 1:
+            # Single fermata - keep as is
+            consolidated_fermatas.append(fermatas_in_measure[0])
+            print(f"  Measure {measure_index}: kept single fermata at tick {fermatas_in_measure[0][0]}")
+        else:
+            # Multiple fermatas - keep the one with largest tick (rightmost position)
+            latest_fermata = max(fermatas_in_measure, key=lambda f: f[0])
+            consolidated_fermatas.append(latest_fermata)
+            
+            removed_ticks = [f[0] for f in fermatas_in_measure if f != latest_fermata]
+            print(f"  Measure {measure_index}: consolidated {len(fermatas_in_measure)} fermatas")
+            print(f"    Kept fermata at tick {latest_fermata[0]} (rightmost)")
+            print(f"    Removed fermatas at ticks {removed_ticks}")
+    
+    print(f"📍 Consolidated to {len(consolidated_fermatas)} fermatas ({len(fermata_items) - len(consolidated_fermatas)} removed)")
+    return consolidated_fermatas
+
+def interpolate_fermata_by_position(fermata_x, before_note, after_note):
+    """
+    Interpolate fermata tick position based on spatial coordinates.
+    
+    Args:
+        fermata_x (float): X coordinate of fermata
+        before_note (dict): Note before fermata position (or None)
+        after_note (dict): Note after fermata position (or None)
+        
+    Returns:
+        int: Interpolated tick position for fermata
+    """
+    try:
+        if before_note is None and after_note is None:
+            print("    Error: No surrounding notes found for interpolation")
+            return None
+        elif before_note is None:
+            # Fermata is before all notes - place at beginning of first note
+            return after_note['on_tick']
+        elif after_note is None:
+            # Fermata is after all notes - place at end of last note
+            return before_note['off_tick']
+        else:
+            # Interpolate between two notes
+            x_span = after_note['x'] - before_note['x']
+            if x_span <= 0:
+                # Notes at same x position - place at before note
+                return before_note['on_tick']
+            
+            # Calculate relative position (0.0 = before note, 1.0 = after note)
+            relative_pos = (fermata_x - before_note['x']) / x_span
+            
+            # Interpolate between end of before note and start of after note
+            tick_span = after_note['on_tick'] - before_note['off_tick']
+            fermata_tick = int(before_note['off_tick'] + (relative_pos * tick_span))
+            
+            print(f"    Interpolated: x={fermata_x} between {before_note['x']} and {after_note['x']} -> tick {fermata_tick}")
+            return fermata_tick
+            
+    except (KeyError, ZeroDivisionError, TypeError) as e:
+        print(f"    Error interpolating fermata position: {e}")
+        return None
 
 # =============================================================================
 # CHANNEL ANALYSIS AND STATISTICS
@@ -543,7 +745,7 @@ def clean_svg(svg_root):
 # MAIN PROCESSING FUNCTION
 # =============================================================================
 
-def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_output):
+def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_output, fermata_input=None):
     """
     Main orchestration function that coordinates the entire sync generation process.
     
@@ -551,13 +753,15 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     1. Load and validate input files
     2. Extract timing metadata and channel information
     3. Process notes with simplified references and channel data
-    4. Extract and convert bar timing from SVG
-    5. Create unified timeline with proper sorting
-    6. Generate output files optimized for web playback
+    4. Process fermata data if provided
+    5. Extract and convert bar timing from SVG
+    6. Create unified timeline with proper sorting
+    7. Generate output files optimized for web playback
     
     The resulting files enable synchronized audio-visual playback where:
     - Notes can be highlighted as they play
     - Measures can be highlighted for navigation
+    - Fermatas can be handled for expressive timing
     - Multi-channel audio can be properly mixed
     - Timing is accurately synchronized between audio and visual
     
@@ -567,6 +771,7 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
         config_input (str): Path to YAML file with musical structure
         svg_output (str): Path for cleaned/optimized SVG output
         notes_output (str): Path for unified sync YAML output
+        fermata_input (str, optional): Path to CSV file with fermata data
     """
     
     # =============================================================================
@@ -618,6 +823,16 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     print(f"Processed {len(flow_items)} notes with channel information")
     
     # =============================================================================
+    # PROCESS FERMATA DATA
+    # =============================================================================
+    
+    # Process fermata CSV if provided
+    fermata_items = process_fermata_csv(fermata_input, notes_data)
+    
+    # Add fermata events to flow: [tick, None, None, 'fermata']
+    flow_items.extend(fermata_items)
+    
+    # =============================================================================
     # EXTRACT BAR TIMING FROM SVG
     # =============================================================================
     
@@ -634,13 +849,20 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     # Sort flow items for proper chronological playback order
     # Sorting criteria (in order of priority):
     # 1. Start tick (primary timing)
-    # 2. Bars before notes (for simultaneous events)
+    # 2. Bars before fermatas before notes (for simultaneous events)
     # 3. Higher channels first (for note priority)
-    flow_items.sort(key=lambda x: (
-        x[0],                              # Primary: start tick
-        0 if len(x) == 4 and x[3] == 'bar' else 1,  # Secondary: bars before notes
-        -x[1] if len(x) == 4 and x[3] != 'bar' else 0  # Tertiary: higher channels first (for notes)
-    ))    
+    def sort_key(x):
+        tick = x[0]
+        if len(x) == 4:
+            if x[3] == 'bar':
+                return (tick, 0)  # Bars first
+            elif x[3] == 'fermata':
+                return (tick, 1)  # Fermatas second
+            else:
+                return (tick, 2, -x[1])  # Notes third, higher channels first
+        return (tick, 2, 0)  # Default for other items
+    
+    flow_items.sort(key=sort_key)
     
     # =============================================================================
     # GENERATE OUTPUT FILES
@@ -672,14 +894,20 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
         f.write("\nflow:\n")
         
         # Write each flow item as compact YAML list (one line per item)
+        # Use ~ (YAML null) instead of None to reduce file size for network transfer
         for item in flow_items:
             # Format based on item type
-            if len(item) == 4 and item[3] == 'bar':  # Bar: [tick, None, bar_number, 'bar']
-                f.write(f"- [{item[0]}, {item[1]}, {item[2]}, {item[3]}]\n")
+            if len(item) == 4 and item[3] == 'bar':  # Bar: [tick, ~, bar_number, bar]
+                f.write(f"- [{item[0]}, ~, {item[2]}, {item[3]}]\n")
+            elif len(item) == 4 and item[3] == 'fermata':  # Fermata: [tick, ~, ~, fermata]
+                f.write(f"- [{item[0]}, ~, ~, {item[3]}]\n")
             elif len(item) == 4:  # Note: [start_tick, channel, end_tick, hrefs]
                 f.write(f"- [{item[0]}, {item[1]}, {item[2]}, {item[3]}]\n")
             else:  # Legacy format (shouldn't happen with current code)
-                f.write(f"- [{item[0]}, {item[1]}, {item[2]}]\n")
+                # Handle None values in legacy format
+                val1 = '~' if item[1] is None else item[1]
+                val2 = '~' if item[2] is None else item[2]
+                f.write(f"- [{item[0]}, {val1}, {val2}]\n")
                  
     # Write cleaned and optimized SVG
     print(f"Writing {svg_output}...")
@@ -690,12 +918,16 @@ def generate_sync_files(svg_input, notes_input, config_input, svg_output, notes_
     # VALIDATION AND DEBUGGING OUTPUT
     # =============================================================================
     
-    print(f"✅ Generated {len(flow_items)} flow items ({len(notes_data)} notes, {len(bars)} bars)")
+    total_notes = len([item for item in flow_items if len(item) == 4 and item[3] != 'bar' and item[3] != 'fermata'])
+    total_bars = len([item for item in flow_items if len(item) == 4 and item[3] == 'bar'])
+    total_fermatas = len([item for item in flow_items if len(item) == 4 and item[3] == 'fermata'])
+    
+    print(f"✅ Generated {len(flow_items)} flow items ({total_notes} notes, {total_bars} bars, {total_fermatas} fermatas)")
     
     # Debug: Show channel distribution to verify multi-track processing
     channel_counts = {}
     for item in flow_items:
-        if len(item) == 4 and item[3] != 'bar':  # Note: [start_tick, channel, end_tick, hrefs]
+        if len(item) == 4 and item[3] != 'bar' and item[3] != 'fermata':  # Note: [start_tick, channel, end_tick, hrefs]
             channel = item[1]  # Channel is at index 1 in new format
             channel_counts[channel] = channel_counts.get(channel, 0) + 1
     
@@ -713,15 +945,16 @@ def main():
     Command line interface for the sync generation script.
     
     Defines all required input and output parameters with clear descriptions.
-    All parameters are required to ensure proper file processing.
+    Most parameters are required to ensure proper file processing, with optional fermata support
+    using spatial interpolation for tied notes.
     """
-    parser = argparse.ArgumentParser(description='Generate unified sync format')
+    parser = argparse.ArgumentParser(description='Generate unified sync format with optional fermata support (spatial interpolation)')
     
     # Required inputs - no defaults to ensure explicit file specification
     parser.add_argument('-is', '--svg-input', required=True, 
                        help='Input SVG file (e.g. test_optimized.svg)')
     parser.add_argument('-in', '--notes-input', required=True,
-                       help='Input notes JSON (e.g. test_json_notes.json)')  
+                       help='Input notes JSON with spatial coordinates (e.g. test_json_notes.json)')  
     parser.add_argument('-ic', '--config-input', required=True,
                        help='Input config YAML (e.g. test.config.yaml)')
     
@@ -731,6 +964,10 @@ def main():
     parser.add_argument('-on', '--notes-output', required=True, 
                        help='Output sync YAML (e.g. test.yaml)')
     
+    # Optional inputs for enhanced functionality
+    parser.add_argument('-if', '--fermata-input', required=False,
+                       help='Input fermata CSV (e.g. test_note_heads_fermata.csv)')
+    
     args = parser.parse_args()
     
     # Process files using parsed arguments
@@ -739,7 +976,8 @@ def main():
         notes_input=args.notes_input, 
         config_input=args.config_input,
         svg_output=args.svg_output,
-        notes_output=args.notes_output
+        notes_output=args.notes_output,
+        fermata_input=args.fermata_input
     )
 
 # =============================================================================

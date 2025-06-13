@@ -6,7 +6,9 @@
     "on_tick": 0,
     "off_tick": 192,
     "pitch": 77,
-    "channel": 0
+    "channel": 0,
+    "x": 19.461,
+    "y": 20.466
   },
   {
     "hrefs": [
@@ -15,7 +17,9 @@
     "on_tick": 192,
     "off_tick": 288,
     "pitch": 65,
-    "channel": 0
+    "channel": 0,
+    "x": 21.812,
+    "y": 23.966
   },
   {
     "hrefs": [
@@ -24,7 +28,9 @@
     "on_tick": 192,
     "off_tick": 384,
     "pitch": 69,
-    "channel": 0
+    "channel": 0,
+    "x": 21.812,
+    "y": 22.966
   },
   {
     "hrefs": [
@@ -34,7 +40,9 @@
     "on_tick": 384,
     "off_tick": 960,
     "pitch": 69,
-    "channel": 0
+    "channel": 0,
+    "x": 24.565,
+    "y": 22.966
   },
   {
     "hrefs": [
@@ -44,7 +52,9 @@
     "on_tick": 384,
     "off_tick": 960,
     "pitch": 72,
-    "channel": 0
+    "channel": 0,
+    "x": 24.565,
+    "y": 21.966
   },
   {
     "hrefs": [
@@ -53,7 +63,9 @@
     "on_tick": 576,
     "off_tick": 768,
     "pitch": 41,
-    "channel": 0
+    "channel": 0,
+    "x": 28.221,
+    "y": 33.966
   },
   {
     "hrefs": [
@@ -62,7 +74,9 @@
     "on_tick": 768,
     "off_tick": 960,
     "pitch": 65,
-    "channel": 0
+    "channel": 0,
+    "x": 31.887,
+    "y": 26.966
   },
   {
     "hrefs": [
@@ -71,7 +85,9 @@
     "on_tick": 960,
     "off_tick": 1152,
     "pitch": 62,
-    "channel": 0
+    "channel": 0,
+    "x": 34.14,
+    "y": 27.966
   },
   {
     "hrefs": [
@@ -80,7 +96,9 @@
     "on_tick": 960,
     "off_tick": 1344,
     "pitch": 70,
-    "channel": 0
+    "channel": 0,
+    "x": 34.14,
+    "y": 22.466
   },
   {
     "hrefs": [
@@ -89,7 +107,9 @@
     "on_tick": 960,
     "off_tick": 1344,
     "pitch": 74,
-    "channel": 0
+    "channel": 0,
+    "x": 34.14,
+    "y": 21.466
   },
   {
     "hrefs": [
@@ -98,7 +118,9 @@
     "on_tick": 1152,
     "off_tick": 1344,
     "pitch": 58,
-    "channel": 0
+    "channel": 0,
+    "x": 36.393,
+    "y": 28.966
   },
   {
     "hrefs": [
@@ -107,7 +129,9 @@
     "on_tick": 1344,
     "off_tick": 2112,
     "pitch": 65,
-    "channel": 0
+    "channel": 0,
+    "x": 39.792,
+    "y": 23.966
   },
   {
     "hrefs": [
@@ -116,7 +140,9 @@
     "on_tick": 1344,
     "off_tick": 1728,
     "pitch": 69,
-    "channel": 0
+    "channel": 0,
+    "x": 40.482,
+    "y": 22.966
   },
   {
     "hrefs": [
@@ -125,7 +151,9 @@
     "on_tick": 1344,
     "off_tick": 1536,
     "pitch": 72,
-    "channel": 0
+    "channel": 0,
+    "x": 39.792,
+    "y": 21.966
   },
   {
     "hrefs": [
@@ -134,7 +162,9 @@
     "on_tick": 1536,
     "off_tick": 1728,
     "pitch": 53,
-    "channel": 0
+    "channel": 0,
+    "x": 42.353,
+    "y": 30.466
   },
   {
     "hrefs": [
@@ -143,7 +173,9 @@
     "on_tick": 1536,
     "off_tick": 1920,
     "pitch": 77,
-    "channel": 0
+    "channel": 0,
+    "x": 42.353,
+    "y": 20.466
   },
   {
     "hrefs": [
@@ -152,7 +184,9 @@
     "on_tick": 1728,
     "off_tick": 1920,
     "pitch": 50,
-    "channel": 0
+    "channel": 0,
+    "x": 44.856,
+    "y": 31.466
   },
   {
     "hrefs": [
@@ -161,7 +195,9 @@
     "on_tick": 1728,
     "off_tick": 2112,
     "pitch": 70,
-    "channel": 0
+    "channel": 0,
+    "x": 44.856,
+    "y": 22.466
   },
   {
     "hrefs": [
@@ -170,7 +206,9 @@
     "on_tick": 1920,
     "off_tick": 2112,
     "pitch": 46,
-    "channel": 0
+    "channel": 0,
+    "x": 47.839,
+    "y": 32.466
   },
   {
     "hrefs": [
@@ -179,7 +217,9 @@
     "on_tick": 1920,
     "off_tick": 2016,
     "pitch": 75,
-    "channel": 0
+    "channel": 0,
+    "x": 47.839,
+    "y": 20.966
   },
   {
     "hrefs": [
@@ -188,7 +228,9 @@
     "on_tick": 2016,
     "off_tick": 2112,
     "pitch": 74,
-    "channel": 0
+    "channel": 0,
+    "x": 49.741,
+    "y": 21.466
   },
   {
     "hrefs": [
@@ -197,7 +239,9 @@
     "on_tick": 2112,
     "off_tick": 2304,
     "pitch": 53,
-    "channel": 0
+    "channel": 0,
+    "x": 52.915,
+    "y": 30.466
   },
   {
     "hrefs": [
@@ -206,7 +250,9 @@
     "on_tick": 2112,
     "off_tick": 2496,
     "pitch": 53,
-    "channel": 0
+    "channel": 0,
+    "x": 52.915,
+    "y": 30.466
   },
   {
     "hrefs": [
@@ -215,7 +261,9 @@
     "on_tick": 2112,
     "off_tick": 2496,
     "pitch": 65,
-    "channel": 0
+    "channel": 0,
+    "x": 52.915,
+    "y": 23.966
   },
   {
     "hrefs": [
@@ -224,7 +272,9 @@
     "on_tick": 2112,
     "off_tick": 2304,
     "pitch": 70,
-    "channel": 0
+    "channel": 0,
+    "x": 52.915,
+    "y": 22.466
   },
   {
     "hrefs": [
@@ -233,7 +283,9 @@
     "on_tick": 2112,
     "off_tick": 2304,
     "pitch": 74,
-    "channel": 0
+    "channel": 0,
+    "x": 52.915,
+    "y": 21.466
   },
   {
     "hrefs": [
@@ -242,7 +294,9 @@
     "on_tick": 2304,
     "off_tick": 2496,
     "pitch": 41,
-    "channel": 0
+    "channel": 0,
+    "x": 55.293,
+    "y": 33.966
   },
   {
     "hrefs": [
@@ -251,7 +305,9 @@
     "on_tick": 2304,
     "off_tick": 2496,
     "pitch": 69,
-    "channel": 0
+    "channel": 0,
+    "x": 55.293,
+    "y": 22.966
   },
   {
     "hrefs": [
@@ -260,6 +316,8 @@
     "on_tick": 2304,
     "off_tick": 2496,
     "pitch": 72,
-    "channel": 0
+    "channel": 0,
+    "x": 55.293,
+    "y": 21.966
   }
 ]

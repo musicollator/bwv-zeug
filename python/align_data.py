@@ -15,15 +15,16 @@ Input Files Required:
 - Squashed SVG notehead data CSV (with embedded tied_hrefs column)
 
 Output:
-- Aligned notes with tick timing, pitch, and SVG references JSON
+- Aligned notes with tick timing, pitch, SVG references, and spatial coordinates JSON
 
 The alignment process ensures that visual noteheads in the SVG match their
-corresponding MIDI events for precise animated score following.
+corresponding MIDI events for precise animated score following. Spatial coordinates
+are preserved for downstream fermata interpolation and visual positioning.
 
 Pipeline:
 1. extract_note_heads.py (extracts all noteheads from SVG)
 2. squash-tied-note-heads.py (removes secondaries, embeds tie groups in primaries)
-3. align-data.py (this script - alignment with tick timing preserved)
+3. align-data.py (this script - alignment with tick timing and spatial data preserved)
 """
 
 import pandas as pd
@@ -45,6 +46,7 @@ Examples:
 
 Note: The SVG noteheads CSV should be pre-processed with squash-tied-note-heads.py
       The MIDI CSV must use tick format (on_tick/off_tick columns)
+      Spatial coordinates (x, y) are preserved for downstream processing
         """
     )
     
@@ -116,6 +118,7 @@ def main():
             raise ValueError(f"SVG CSV missing required columns. Expected: {expected_svg_columns}, Found: {set(svg_df.columns)}")
 
         print("   🕒 Using tick timing format")
+        print("   📐 Preserving spatial coordinates (x, y)")
 
         # =================================================================
         # STEP 1: SORT MIDI DATA ONLY (PRESERVE SVG ORDER)
@@ -203,13 +206,15 @@ def main():
                 secondary_hrefs = str(tied_hrefs_value).split("|")
                 complete_hrefs.extend(secondary_hrefs)
 
-            # Create aligned note entry with tick timing
+            # Create aligned note entry with tick timing and spatial coordinates
             aligned_note = {                                                                  
                 "hrefs": complete_hrefs,                                    # All SVG noteheads for this musical event
                 "on_tick": make_json_serializable(midi_row.on_tick),        # Start time in ticks
                 "off_tick": make_json_serializable(midi_row.off_tick),      # End time in ticks
                 "pitch": make_json_serializable(midi_row.midi),             # MIDI pitch number (for audio playback)
-                "channel": make_json_serializable(midi_row.channel)         # MIDI channel (for multi-voice music)
+                "channel": make_json_serializable(midi_row.channel),        # MIDI channel (for multi-voice music)
+                "x": make_json_serializable(svg_row.x),                     # X coordinate from SVG (for spatial interpolation)
+                "y": make_json_serializable(svg_row.y)                      # Y coordinate from SVG (for future use)
             }                                                                  
             
             aligned_notes.append(aligned_note)
@@ -246,6 +251,7 @@ def main():
         print(f"   🔗 {tie_count} tied noteheads")
         print(f"   🎵 {notes_with_ties} notes have ties")
         print(f"   🕒 Timing format: ticks (preserved)")
+        print(f"   📐 Spatial coordinates: x, y (preserved)")
         print(f"   💾 Saved: {output_json}")
 
         if mismatch_count > 0:

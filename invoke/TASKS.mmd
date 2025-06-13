@@ -43,7 +43,7 @@ R0[bwv_script:extract_ties.py            -i BWV000_ly_one_line_filtered.svg     
 R11[bwv_script:squash-tied-note-heads.py -i BWV000_note_heads.csv   -t BWV000_ties.csv                  -o BWV000_note_heads_squashed.csv   <br/>🎵 Squash tied noteheads]
 R9[bwv_script:align_data.py              -im BWV000_note_events.csv -is BWV000_note_heads_squashed.csv  -o BWV000_json_notes.json           <br/>🎯 Align MIDI↔SVG]
 R12[bwv_script:remove_unwanted_hrefs.py  -i BWV000_ly_one_line.svg                                      -o BWV000_ly_one_line_filtered.svg  <br/>🔗 Remove unwanted hrefs from one-line]
-R13[bwv_script:generate_sync.py          -is BWV000_optimized.svg   -in BWV000_json_notes.json -ic exports/BWV000.config.yaml -os exports/BWV000.svg -on exports/BWV000.yaml <br/>🎵 Generate unified sync format]
+R13[bwv_script:generate_sync.py          -is BWV000_optimized.svg   -in BWV000_json_notes.json -ic exports/BWV000.config.yaml -if BWV000_note_heads_fermata.csv -os exports/BWV000.svg -on exports/BWV000.yaml <br/>🎵 Generate unified sync format]
 
 %% ============================================================================
 %% OUTPUT NODES
@@ -132,9 +132,10 @@ O9 --> T11
 O10 --> T9
 O8 --> T9
 
-%% Sync generation step (final unification)
+%% Sync generation step (final unification with fermata support)
 O12 --> T13
 O13 --> T13
+O14 --> T13
 I4 --> T13
 
 %% Final export
