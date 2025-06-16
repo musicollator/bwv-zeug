@@ -1,0 +1,9 @@
+bwv245-1.wav: 0
+bwv245-2.wav: 4
+bwv245-3.wav: 8
+bwv245-4.wav: 12
+bwv245-5.wav: 12
+bwv245-6.wav:
+  max_clicks: 5
+  last_beat: 7.400
+bwv245-7.wav: 0

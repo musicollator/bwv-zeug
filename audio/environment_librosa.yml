@@ -1,0 +1,20 @@
+name: base
+channels:
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - python=3.12
+  - conda==25.5.1
+  - setuptools
+  - pip
+  - wheel
+  - conda-anaconda-telemetry
+  - conda-anaconda-tos[version='>=0.1.2']
+  - conda-content-trust
+  - conda-libmamba-solver
+  - menuinst
+  - python.app
+  - anaconda-anon-usage
+  - anaconda-clean
+  - librosa
+prefix: /usr/local/Caskroom/miniconda/base

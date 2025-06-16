@@ -24,3 +24,5 @@ tasks_generated.py
 /invoke/test/tasks.py
 
 .DS_Store
+
+segments/

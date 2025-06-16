@@ -1,0 +1,17 @@
+workInfo:
+  title: "Choral from BWV 245"
+  fullTitle: "O große Lieb - 'BWV 245"
+  composer: "J.S. Bach"
+  workId: "bwv245"
+  movementName: "Choral"
+  externalURL: "https://en.wikipedia.org/wiki/St_John_Passion"
+
+files:
+  audioPath: "bwv245.wav"
+  
+musicalStructure:
+  totalDurationSeconds: 55.0
+  totalMeasures: 11
+  lastMeasureDuration: 3/4
+  visualLeadTimeSeconds: 0
+
