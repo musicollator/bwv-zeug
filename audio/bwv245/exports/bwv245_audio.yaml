@@ -4,7 +4,7 @@ meta:
   maxTick: 56676
   minMoment: 0
   maxMoment: 11
-  musicStartSeconds: 1.419954648526077
+  musicStartSeconds: 0.0
   channels:
     4:
       minPitch: 43
