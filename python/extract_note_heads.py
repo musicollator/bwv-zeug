@@ -29,10 +29,10 @@ Input Files:
 - Optional: Project YAML config file (PROJECT_NAME.yaml) for tolerance setting
 
 Output:
-- CSV file with notehead coordinates, pitches, and beat timing in format: snippet,data_ref,x,y,beat_time,beat_index
+- CSV file with notehead coordinates, pitches, and bar timing in format: snippet,data_ref,x,y,bar,bar_moment
 - Optional fermata CSV file with fermata positions only
-- beat_time contains data-bar-moment-main value for noteheads that are leftmost in their bars (first beats)
-- beat_index contains sequential beat number (0, 1, 2...) for beat-aligned noteheads
+- bar_moment contains data-bar-moment-main value for noteheads that are leftmost in their bars (downbeats)
+- bar contains the bar number for bar-aligned noteheads
 
 Note: This script expects normalized SVG input from upstream processing with clean data-ref
 attributes. No additional href cleaning is performed.
@@ -173,9 +173,9 @@ def extract_bar_data_from_svg(root, ns):
     
     return unique_bars
 
-def assign_beat_times_to_noteheads(notehead_data, bars, tolerance):
+def assign_bar_timing_to_noteheads(notehead_data, bars, tolerance):
     """
-    Assign beat times to noteheads that are leftmost in their respective bars.
+    Assign bar timing to noteheads that are leftmost in their respective bars.
     
     Args:
         notehead_data: List of notehead dictionaries with x, y, data_ref, snippet
@@ -183,19 +183,19 @@ def assign_beat_times_to_noteheads(notehead_data, bars, tolerance):
         tolerance: X-coordinate tolerance for grouping noteheads
     
     Returns:
-        Modified notehead_data with beat_time and beat_index added to leftmost noteheads
+        Modified notehead_data with bar_moment and bar added to leftmost noteheads
     """
     if not bars:
-        # No bar data available, add empty beat fields
+        # No bar data available, add empty bar fields
         for notehead in notehead_data:
-            notehead['beat_time'] = None
-            notehead['beat_index'] = None
+            notehead['bar_moment'] = None
+            notehead['bar'] = None
         return notehead_data
     
-    # Initialize all noteheads with empty beat fields
+    # Initialize all noteheads with empty bar fields
     for notehead in notehead_data:
-        notehead['beat_time'] = None
-        notehead['beat_index'] = None
+        notehead['bar_moment'] = None
+        notehead['bar'] = None
     
     # Sort bars by x position to ensure proper processing order
     bars_sorted = sorted(bars, key=lambda b: b['x_position'])
@@ -251,10 +251,10 @@ def assign_beat_times_to_noteheads(notehead_data, bars, tolerance):
             if abs(notehead['x'] - leftmost_x) <= tolerance:
                 leftmost_group.append(notehead)
         
-        # Assign beat timing to leftmost noteheads only
+        # Assign bar timing to leftmost noteheads only
         for notehead in leftmost_group:
-            notehead['beat_time'] = bar_moment
-            notehead['beat_index'] = bar_number  # Use actual bar number, not array index
+            notehead['bar_moment'] = bar_moment
+            notehead['bar'] = bar_number  # Use actual bar number, not array index
     
     return notehead_data
 
@@ -627,7 +627,7 @@ def main():
         # BAR DATA EXTRACTION AND BEAT TIME ASSIGNMENT
         # =================================================================
 
-        print("🎵 Extracting bar data and assigning beat times...")
+        print("🎵 Extracting bar data and assigning bar timing...")
         
         # Extract bar positions and timing data from SVG
         bars = extract_bar_data_from_svg(root, NS)
@@ -640,12 +640,12 @@ def main():
             if len(bars) > 3:
                 print(f"   ... and {len(bars) - 3} more bars")
         
-        # Assign beat times to leftmost noteheads in each bar
-        notehead_data = assign_beat_times_to_noteheads(notehead_data, bars, tolerance)
+        # Assign bar timing to leftmost noteheads in each bar
+        notehead_data = assign_bar_timing_to_noteheads(notehead_data, bars, tolerance)
         
-        # Count how many noteheads got beat assignments
-        beat_assigned = sum(1 for n in notehead_data if n.get('beat_time') is not None)
-        print(f"   🎯 Assigned beat times to {beat_assigned} noteheads (leftmost in each bar)")
+        # Count how many noteheads got bar assignments
+        bar_assigned = sum(1 for n in notehead_data if n.get('bar_moment') is not None)
+        print(f"   🎯 Assigned bar timing to {bar_assigned} noteheads (leftmost in each bar)")
 
         # =================================================================
         # SPATIAL SORTING WITH TOLERANCE FOR SIMULTANEOUS NOTES
@@ -689,12 +689,12 @@ def main():
         notehead_df = pd.DataFrame(notehead_data)
         
         # Ensure all required columns exist, even if no data
-        required_columns = ["snippet", "data_ref", "x", "y", "beat_time", "beat_index"]
+        required_columns = ["snippet", "data_ref", "x", "y", "bar", "bar_moment"]
         for col in required_columns:
             if col not in notehead_df.columns:
                 notehead_df[col] = None
         
-        # Reorder columns to include beat timing data: snippet, data_ref, x, y, beat_time, beat_index
+        # Reorder columns to include bar timing data: snippet, data_ref, x, y, bar, bar_moment
         notehead_df = notehead_df[required_columns]
         
         # Round coordinates to 3 decimal precision for consistency (only if data exists)
