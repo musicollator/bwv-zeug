@@ -1,0 +1,152 @@
+meta:
+  totalMeasures: 3
+  minTick: 0
+  maxTick: 2496
+  minMoment: 0
+  maxMoment: 3
+  musicStartSeconds: 0.0
+  tickToSecondRatio: 0.0014178240740740742
+  channels:
+    0:
+      minPitch: 41
+      maxPitch: 77
+      count: 29
+flow:
+- - 1419
+  - null
+  - 0
+  - bar
+- - 1419
+  - 0
+  - 1419
+  - - test-main.ly:10:7
+- - 1419
+  - 0
+  - 1419
+  - - test-main.ly:15:16
+- - 1419
+  - 0
+  - 1419
+  - - test-main.ly:10:14
+- - 384
+  - null
+  - null
+  - fermata
+- - 1419
+  - 0
+  - 1939
+  - - test-main.ly:15:22
+    - test-main.ly:16:7
+- - 1419
+  - 0
+  - 1939
+  - - test-main.ly:10:18
+    - test-main.ly:11:7
+- - 1419
+  - null
+  - 1
+  - bar
+- - 1419
+  - 0
+  - 1679
+  - - test-main.ly:34:3
+- - 1679
+  - 0
+  - 1939
+  - - test-main.ly:34:7
+- - 1939
+  - 0
+  - 2199
+  - - test-main.ly:34:11
+- - 1939
+  - 0
+  - 2459
+  - - test-main.ly:16:11
+- - 1939
+  - 0
+  - 2459
+  - - test-main.ly:11:21
+- - 2199
+  - 0
+  - 2459
+  - - test-main.ly:34:15
+- - 2459
+  - null
+  - 2
+  - bar
+- - 2459
+  - 0
+  - 3869
+  - - test-main.ly:17:7
+- - 2459
+  - 0
+  - 3164
+  - - test-main.ly:22:7
+- - 2459
+  - 0
+  - 2812
+  - - test-main.ly:12:7
+- - 2812
+  - 0
+  - 3164
+  - - test-main.ly:35:6
+- - 2812
+  - 0
+  - 3517
+  - - test-main.ly:12:12
+- - 3164
+  - 0
+  - 3517
+  - - test-main.ly:35:9
+- - 3164
+  - 0
+  - 3869
+  - - test-main.ly:22:11
+- - 3517
+  - 0
+  - 3869
+  - - test-main.ly:35:12
+- - 3517
+  - 0
+  - 3693
+  - - test-main.ly:12:17
+- - 3693
+  - 0
+  - 3869
+  - - test-main.ly:12:25
+- - 3869
+  - null
+  - 3
+  - bar
+- - 3869
+  - 0
+  - 4222
+  - - test-main.ly:36:6
+- - 3869
+  - 0
+  - 4574
+  - - test-main.ly:36:14
+- - 3869
+  - 0
+  - 4574
+  - - test-main.ly:18:7
+- - 3869
+  - 0
+  - 4222
+  - - test-main.ly:13:9
+- - 3869
+  - 0
+  - 4222
+  - - test-main.ly:13:14
+- - 4222
+  - 0
+  - 4574
+  - - test-main.ly:36:17
+- - 4222
+  - 0
+  - 4574
+  - - test-main.ly:13:23
+- - 4222
+  - 0
+  - 4574
+  - - test-main.ly:13:26
