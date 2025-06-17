@@ -76,6 +76,17 @@ oneLineLayout = \layout {
     \consists \Tie_grob_engraver
     \consists #simple-fermata-data-engraver
   }
+  % Add bar highlighting for data extraction
+  \context {
+    \Staff
+    \consists #Simple_highlight_engraver
+    \consists Staff_highlight_engraver
+    \consists #Bar_timing_collector
+  }
+  \context {
+    \Score
+    \override StaffHighlight.after-line-breaking = #add-data-bar-to-highlight
+  }
 }
 
 % Move Staff_performer from Staff to Voice context

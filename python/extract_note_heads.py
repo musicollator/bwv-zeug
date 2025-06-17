@@ -29,8 +29,10 @@ Input Files:
 - Optional: Project YAML config file (PROJECT_NAME.yaml) for tolerance setting
 
 Output:
-- CSV file with notehead coordinates, pitches, and reference links in format: snippet,data_ref,x,y
+- CSV file with notehead coordinates, pitches, and beat timing in format: snippet,data_ref,x,y,beat_time,beat_index
 - Optional fermata CSV file with fermata positions only
+- beat_time contains data-bar-moment-main value for noteheads that are leftmost in their bars (first beats)
+- beat_index contains sequential beat number (0, 1, 2...) for beat-aligned noteheads
 
 Note: This script expects normalized SVG input from upstream processing with clean data-ref
 attributes. No additional href cleaning is performed.
@@ -106,6 +108,155 @@ note_regex = re.compile(r"""
             \s*               # optional whitespace  
             [,']*             # optional octave marks
         """, re.VERBOSE)
+
+# =============================================================================
+# BAR DATA EXTRACTION FOR BEAT TIMING
+# =============================================================================
+
+def extract_bar_data_from_svg(root, ns):
+    """
+    Extract bar positions and timing data from SVG elements.
+    
+    Args:
+        root: ElementTree root element of the SVG
+        ns: Namespace dictionary for SVG parsing
+    
+    Returns:
+        List of dictionaries with bar data: [{'bar_number': int, 'x_position': float, 'moment_main': str, 'moment_grace': str}]
+    """
+    bars = []
+    
+    # Find all elements with data-bar attributes
+    for elem in root.iter():
+        if 'data-bar' in elem.attrib:
+            try:
+                bar_num = int(elem.attrib['data-bar'])
+                
+                # Extract x position from transform attribute in child elements
+                x_pos = None
+                for child in elem.iter():
+                    if 'transform' in child.attrib:
+                        # Parse transform="translate(x, y)" 
+                        match = re.search(r'translate\(([\d.]+),', child.attrib['transform'])
+                        if match:
+                            x_pos = float(match.group(1))
+                            break
+                
+                if x_pos is not None:
+                    # Handle anacrusis (pickup) bars which may not have moment attributes
+                    moment_main = elem.attrib.get('data-bar-moment-main')
+                    if moment_main is None:
+                        # Anacrusis bar - assign default moment of "0"
+                        moment_main = "0"
+                    
+                    bar_data = {
+                        'bar_number': bar_num,
+                        'x_position': x_pos,
+                        'moment_main': moment_main,
+                        'moment_grace': elem.attrib.get('data-bar-moment-grace', '0')
+                    }
+                    bars.append(bar_data)
+                    
+            except (ValueError, TypeError):
+                continue  # Skip invalid bar numbers
+    
+    # Sort bars by x position (left to right) and remove duplicates
+    bars.sort(key=lambda b: b['x_position'])
+    
+    # Keep only the leftmost occurrence of each bar number
+    unique_bars = []
+    seen_bars = set()
+    for bar in bars:
+        if bar['bar_number'] not in seen_bars:
+            unique_bars.append(bar)
+            seen_bars.add(bar['bar_number'])
+    
+    return unique_bars
+
+def assign_beat_times_to_noteheads(notehead_data, bars, tolerance):
+    """
+    Assign beat times to noteheads that are leftmost in their respective bars.
+    
+    Args:
+        notehead_data: List of notehead dictionaries with x, y, data_ref, snippet
+        bars: List of bar data from extract_bar_data_from_svg()
+        tolerance: X-coordinate tolerance for grouping noteheads
+    
+    Returns:
+        Modified notehead_data with beat_time and beat_index added to leftmost noteheads
+    """
+    if not bars:
+        # No bar data available, add empty beat fields
+        for notehead in notehead_data:
+            notehead['beat_time'] = None
+            notehead['beat_index'] = None
+        return notehead_data
+    
+    # Initialize all noteheads with empty beat fields
+    for notehead in notehead_data:
+        notehead['beat_time'] = None
+        notehead['beat_index'] = None
+    
+    # Sort bars by x position to ensure proper processing order
+    bars_sorted = sorted(bars, key=lambda b: b['x_position'])
+    
+    # For each bar, find noteheads that belong to it and assign beat timing
+    for bar in bars_sorted:
+        bar_x = bar['x_position']
+        bar_moment = bar['moment_main']
+        bar_number = bar['bar_number']
+        
+        # Find noteheads that are close to this bar's x position
+        # Use a range-based approach: from this bar to the next bar
+        next_bar_x = None
+        for other_bar in bars_sorted:
+            if other_bar['x_position'] > bar_x:
+                next_bar_x = other_bar['x_position']
+                break
+        
+        # Define the range for this bar
+        if next_bar_x is not None:
+            # Midpoint between current and next bar
+            bar_range_end = (bar_x + next_bar_x) / 2
+        else:
+            # Last bar - use a large range
+            bar_range_end = float('inf')
+        
+        # Find all noteheads in this bar's range
+        bar_noteheads = []
+        for notehead in notehead_data:
+            notehead_x = notehead['x']
+            
+            # For the first bar, be more generous with the lower bound
+            if bar == bars_sorted[0]:  # First bar
+                # Include noteheads from the beginning up to midpoint to next bar
+                if notehead_x < bar_range_end:
+                    bar_noteheads.append(notehead)
+            else:
+                # Regular bars: from bar position to midpoint to next bar
+                if bar_x <= notehead_x < bar_range_end:
+                    bar_noteheads.append(notehead)
+        
+        if not bar_noteheads:
+            continue
+        
+        # Sort noteheads in this bar by x position
+        bar_noteheads.sort(key=lambda n: n['x'])
+        
+        # Find leftmost group using tolerance-based chord detection
+        leftmost_x = bar_noteheads[0]['x']
+        leftmost_group = []
+        
+        for notehead in bar_noteheads:
+            if abs(notehead['x'] - leftmost_x) <= tolerance:
+                leftmost_group.append(notehead)
+        
+        # Assign beat timing to leftmost noteheads only
+        for notehead in leftmost_group:
+            notehead['beat_time'] = bar_moment
+            notehead['beat_index'] = bar_number  # Use actual bar number, not array index
+    
+    return notehead_data
 
 # =============================================================================
 # LILYPOND SOURCE CODE PARSING FUNCTION - V2 (UPDATED FOR NORMALIZED DATA-REF)
@@ -473,6 +624,30 @@ def main():
         print(f"   ✅ Found {len(notehead_data)} valid noteheads with pitch data") 
 
         # =================================================================
+        # BAR DATA EXTRACTION AND BEAT TIME ASSIGNMENT
+        # =================================================================
+
+        print("🎵 Extracting bar data and assigning beat times...")
+        
+        # Extract bar positions and timing data from SVG
+        bars = extract_bar_data_from_svg(root, NS)
+        print(f"   📊 Found {len(bars)} bars with timing data")
+        
+        if bars:
+            # Display bar information for verification
+            for bar in bars[:3]:  # Show first 3 bars
+                print(f"   📍 Bar {bar['bar_number']}: x={bar['x_position']:.1f}, moment={bar['moment_main']}")
+            if len(bars) > 3:
+                print(f"   ... and {len(bars) - 3} more bars")
+        
+        # Assign beat times to leftmost noteheads in each bar
+        notehead_data = assign_beat_times_to_noteheads(notehead_data, bars, tolerance)
+        
+        # Count how many noteheads got beat assignments
+        beat_assigned = sum(1 for n in notehead_data if n.get('beat_time') is not None)
+        print(f"   🎯 Assigned beat times to {beat_assigned} noteheads (leftmost in each bar)")
+
+        # =================================================================
         # SPATIAL SORTING WITH TOLERANCE FOR SIMULTANEOUS NOTES
         # =================================================================
 
@@ -513,12 +688,19 @@ def main():
         # Convert notehead data to DataFrame for consistent CSV handling
         notehead_df = pd.DataFrame(notehead_data)
         
-        # Reorder columns to match requested format: snippet, data_ref, x, y
-        notehead_df = notehead_df[["snippet", "data_ref", "x", "y"]]
+        # Ensure all required columns exist, even if no data
+        required_columns = ["snippet", "data_ref", "x", "y", "beat_time", "beat_index"]
+        for col in required_columns:
+            if col not in notehead_df.columns:
+                notehead_df[col] = None
         
-        # Round coordinates to 3 decimal precision for consistency
-        notehead_df["x"] = notehead_df["x"].round(3)
-        notehead_df["y"] = notehead_df["y"].round(3)
+        # Reorder columns to include beat timing data: snippet, data_ref, x, y, beat_time, beat_index
+        notehead_df = notehead_df[required_columns]
+        
+        # Round coordinates to 3 decimal precision for consistency (only if data exists)
+        if len(notehead_df) > 0:
+            notehead_df["x"] = notehead_df["x"].round(3)
+            notehead_df["y"] = notehead_df["y"].round(3)
         
         # Use utility function to handle LilyPond notation CSV quoting
         save_dataframe_with_lilypond_csv(notehead_df, output_csv)
