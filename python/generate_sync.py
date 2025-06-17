@@ -402,23 +402,21 @@ def extract_meta(notes_data, config_data):
     """
     Extract comprehensive timing metadata for synchronization calculations.
     
-    This function establishes the fundamental timing relationships between:
+    This function establishes the fundamental structural relationships:
     - MIDI ticks (discrete timing units from note data)
     - Musical moments (fractional measures from LilyPond)
-    - Real-time seconds (for audio playback synchronization)
-    
-    Key calculations:
-    - Total tick span from first to last note event
-    - Tick-to-second conversion ratio for audio sync
     - Channel statistics for multi-track playback
     - Musical boundaries (measures, moments)
+    
+    Note: tickToSecondRatio has been removed from the pipeline.
+    Timing relationships are now established dynamically using audio detection.
     
     Args:
         notes_data (list): Note timing data from JSON
         config_data (dict): Musical structure configuration from YAML
         
     Returns:
-        dict: Comprehensive metadata including timing ratios and channel info
+        dict: Comprehensive metadata including musical structure and channel info
     """
     # Collect all tick values (both note-on and note-off events)
     all_ticks = []
@@ -430,10 +428,8 @@ def extract_meta(notes_data, config_data):
     min_tick = 0  # ← Fixed: don't assume first note = musical start
     max_tick = max(all_ticks)
     
-    # Calculate tick-to-second conversion using full musical span from 0
-    # This ratio is crucial for synchronizing MIDI playback with visual highlighting
-    total_duration = config_data['musicalStructure']['totalDurationSeconds']
-    tick_to_second_ratio = total_duration / max_tick  # ← Fixed: use full span from 0
+    # Note: tickToSecondRatio has been removed from the pipeline
+    # Timing relationships are now established dynamically based on audio detection
     
     # Calculate channel statistics for multi-track support
     channel_stats = calculate_channel_stats(notes_data)
@@ -445,7 +441,6 @@ def extract_meta(notes_data, config_data):
         'minMoment': 0,
         'maxMoment': config_data['musicalStructure']['totalMeasures'],
         'musicStartSeconds': 0.0,
-        'tickToSecondRatio': tick_to_second_ratio,
         'channels': channel_stats
     }
 

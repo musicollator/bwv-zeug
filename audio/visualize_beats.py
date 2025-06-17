@@ -14,7 +14,7 @@ def load_detected_beats(beats_yaml_path):
     
     return beat_data
 
-def load_yaml_timing_marks(yaml_path):
+def load_yaml_timing_marks(yaml_path, detected_beats=None):
     """Load timing marks from YAML file (original or warped)."""
     if not yaml_path or not Path(yaml_path).exists():
         return None
@@ -24,23 +24,60 @@ def load_yaml_timing_marks(yaml_path):
     
     meta = data['meta']
     flow = data['flow']
-    tick_to_second = meta['tickToSecondRatio']
+    
+    # For audio-synced YAML files, tickToSecondRatio may not exist
+    # In that case, we'll calculate timing based on detected beats
+    tick_to_second = meta.get('tickToSecondRatio')
     
     # Extract bar positions and quarter note beats
     bar_times = []
     quarter_note_times = []
     
+    # Collect tick values first
+    bar_ticks = []
+    quarter_note_ticks = []
+    
     for event in flow:
-        tick, channel, end_tick, info = event
-        time_seconds = tick * tick_to_second
+        tick, channel, _, info = event
         
         # Bar markers
         if info == 'bar':
-            bar_times.append(time_seconds)
+            bar_ticks.append(tick)
         
         # Note onsets (rough quarter note approximation)
         if channel is not None and isinstance(info, list):
-            quarter_note_times.append(time_seconds)
+            quarter_note_ticks.append(tick)
+    
+    # Convert ticks to time
+    if tick_to_second is not None:
+        # Use traditional tick-to-second conversion
+        bar_times = [tick * tick_to_second for tick in bar_ticks]
+        quarter_note_times = [tick * tick_to_second for tick in quarter_note_ticks]
+    elif detected_beats is not None:
+        # For audio-synced files, map tick proportions to detected beat times
+        all_ticks = sorted(set(bar_ticks + quarter_note_ticks))
+        if len(all_ticks) >= 2 and len(detected_beats) >= 2:
+            # Map tick range to detected beat time range proportionally
+            min_tick, max_tick = min(all_ticks), max(all_ticks)
+            min_time, max_time = min(detected_beats), max(detected_beats)
+            
+            # Create timing mapping function
+            def tick_to_time(tick):
+                if max_tick == min_tick:
+                    return min_time
+                tick_ratio = (tick - min_tick) / (max_tick - min_tick)
+                return min_time + tick_ratio * (max_time - min_time)
+            
+            bar_times = [tick_to_time(tick) for tick in bar_ticks]
+            quarter_note_times = [tick_to_time(tick) for tick in quarter_note_ticks]
+        else:
+            # Fallback: return tick values
+            bar_times = bar_ticks
+            quarter_note_times = quarter_note_ticks
+    else:
+        # No timing information available, return tick values
+        bar_times = bar_ticks
+        quarter_note_times = quarter_note_ticks
     
     # Remove duplicates and sort
     bar_times = sorted(set(bar_times))
@@ -360,7 +397,8 @@ def main():
     yaml_timing = None
     if args.yaml_timing:
         print(f"📄 Loading YAML timing from {args.yaml_timing}...")
-        yaml_timing = load_yaml_timing_marks(args.yaml_timing)
+        detected_beat_times = beats_data['concatenated']['beats']
+        yaml_timing = load_yaml_timing_marks(args.yaml_timing, detected_beat_times)
         if yaml_timing:
             print(f"✅ Loaded {len(yaml_timing['quarter_notes'])} quarter notes, {len(yaml_timing['bars'])} bars")
         else:
