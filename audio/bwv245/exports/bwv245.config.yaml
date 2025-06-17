@@ -7,11 +7,11 @@ workInfo:
   externalURL: "https://en.wikipedia.org/wiki/St_John_Passion"
 
 files:
-  audioPath: "bwv245.wav"
+  audioPath: "bwv245.mp3"
   
 musicalStructure:
   totalDurationSeconds: 55.0
   totalMeasures: 11
   lastMeasureDuration: 3/4
-  visualLeadTimeSeconds: 0
+  visualLeadTimeSeconds: 0.5
 
