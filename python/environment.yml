@@ -1,0 +1,30 @@
+name: unified-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - scipy
+  - matplotlib
+  - pillow
+  - pysoundfile
+  - cython
+  - cffi
+  - pycparser
+  - pyparsing
+  - packaging
+  - kiwisolver
+  - python-dateutil
+  - fonttools
+  - mido
+  - pyyaml
+  - ffmpeg
+  - pandas         # ← added here
+  - pip
+  - pip:
+      - git+https://github.com/CPJKU/madmom.git
+      - pyaml
+      - moviepy
+      - torch
+      - librosa
+      - openai-whisper

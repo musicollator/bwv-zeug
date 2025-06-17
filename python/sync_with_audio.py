@@ -153,7 +153,7 @@ def calculate_anacrusis_info(bars_info: Dict) -> Dict:
     
     return anacrusis_info
 
-def calculate_bar_durations(noteheads: Dict[str, Dict], sync_data: Dict) -> Dict:
+def calculate_bar_durations(noteheads: Dict[str, Dict], sync_data: Dict, config_data: Dict = None) -> Dict:
     """
     Calculate bar durations in both ticks and beats by analyzing bar structure.
     
@@ -236,19 +236,48 @@ def calculate_bar_durations(noteheads: Dict[str, Dict], sync_data: Dict) -> Dict
                 standard_duration_ticks = duration_ticks
                 standard_duration_beats = duration_beats
     
-    # Handle last bar: assume same duration as other bars
+    # Handle last bar: check for lastMeasureDuration in config, otherwise assume same duration as other bars
     if len(sorted_bars) > 0:
         last_bar_num = sorted_bars[-1]
+        
+        # Check config for last measure duration
+        last_measure_duration = None
+        if config_data and 'musicalStructure' in config_data and 'lastMeasureDuration' in config_data['musicalStructure']:
+            last_measure_duration_str = config_data['musicalStructure']['lastMeasureDuration']
+            # Parse fraction like "3/4"
+            if '/' in str(last_measure_duration_str):
+                num, den = str(last_measure_duration_str).split('/')
+                last_measure_duration = int(num)  # beats in last measure
+            else:
+                last_measure_duration = int(float(last_measure_duration_str) * 4)  # convert to beats
+        
         if standard_duration_ticks is not None:
-            bars_info[last_bar_num]['duration_ticks'] = standard_duration_ticks
-            bars_info[last_bar_num]['duration_beats'] = standard_duration_beats
-            
-            # Calculate end moment
-            current_start_moment = parse_moment(bars_info[last_bar_num]['start_moment'])
-            end_moment_quarter = int(current_start_moment * 4) + standard_duration_beats
-            bars_info[last_bar_num]['end_moment'] = f"{end_moment_quarter}/4"
-            
-            print(f"   Last bar {last_bar_num}: Assuming standard duration ({standard_duration_ticks} ticks = {standard_duration_beats} beats)")
+            if last_measure_duration is not None:
+                # Use custom last measure duration from config
+                ticks_per_beat = standard_duration_ticks // standard_duration_beats
+                last_bar_duration_ticks = last_measure_duration * ticks_per_beat
+                last_bar_duration_beats = last_measure_duration
+                
+                bars_info[last_bar_num]['duration_ticks'] = last_bar_duration_ticks
+                bars_info[last_bar_num]['duration_beats'] = last_bar_duration_beats
+                
+                # Calculate end moment
+                current_start_moment = parse_moment(bars_info[last_bar_num]['start_moment'])
+                end_moment_quarter = int(current_start_moment * 4) + last_bar_duration_beats
+                bars_info[last_bar_num]['end_moment'] = f"{end_moment_quarter}/4"
+                
+                print(f"   Last bar {last_bar_num}: Using config lastMeasureDuration ({last_bar_duration_ticks} ticks = {last_bar_duration_beats} beats)")
+            else:
+                # Fallback to standard duration
+                bars_info[last_bar_num]['duration_ticks'] = standard_duration_ticks
+                bars_info[last_bar_num]['duration_beats'] = standard_duration_beats
+                
+                # Calculate end moment
+                current_start_moment = parse_moment(bars_info[last_bar_num]['start_moment'])
+                end_moment_quarter = int(current_start_moment * 4) + standard_duration_beats
+                bars_info[last_bar_num]['end_moment'] = f"{end_moment_quarter}/4"
+                
+                print(f"   Last bar {last_bar_num}: Assuming standard duration ({standard_duration_ticks} ticks = {standard_duration_beats} beats)")
         else:
             # Fallback if we couldn't determine standard duration
             bars_info[last_bar_num]['duration_ticks'] = None
@@ -600,7 +629,7 @@ def interpolate_non_beat_ticks(sync_data: Dict, beat_tick_mapping: Dict[int, int
     
     return complete_mapping
 
-def apply_tick_mappings_to_flow(sync_data: Dict, complete_tick_mapping: Dict[int, int]) -> Dict:
+def apply_tick_mappings_to_flow(sync_data: Dict, complete_tick_mapping: Dict[int, int], detected_beats: List[float] = None) -> Dict:
     """
     Apply complete tick mappings to create final audio-synced flow data.
     
@@ -672,6 +701,12 @@ def apply_tick_mappings_to_flow(sync_data: Dict, complete_tick_mapping: Dict[int
             audio_sync_data['meta']['minTick'] = min(all_new_ticks)
             audio_sync_data['meta']['maxTick'] = max(all_new_ticks)
             print(f"   🔄 Updated metadata: minTick={audio_sync_data['meta']['minTick']}, maxTick={audio_sync_data['meta']['maxTick']}")
+    
+    # Update musicStartSeconds based on first detected beat
+    if 'meta' in audio_sync_data and detected_beats and len(detected_beats) > 0:
+        first_beat_time = detected_beats[0]
+        audio_sync_data['meta']['musicStartSeconds'] = first_beat_time
+        print(f"   🎵 Updated musicStartSeconds to {first_beat_time:.3f}s (first detected beat)")
     
     return audio_sync_data
 
@@ -794,11 +829,27 @@ def save_audio_synced_yaml(audio_sync_data: Dict, output_yaml: Path):
         print(f"Error saving output: {e}")
         raise
 
+def load_config_data(config_file: Path) -> Dict:
+    """Load configuration data from YAML file."""
+    try:
+        if config_file and config_file.exists():
+            with open(config_file, 'r') as f:
+                config_data = yaml.safe_load(f)
+            print(f"Loaded config data from {config_file}")
+            return config_data
+        else:
+            print(f"Config file not provided or doesn't exist: {config_file}")
+            return {}
+    except Exception as e:
+        print(f"Warning: Error loading config file {config_file}: {e}")
+        return {}
+
 def main():
     parser = argparse.ArgumentParser(description='Generate audio-synchronized timing data for dynamic tempo playback')
     parser.add_argument('noteheads_csv', help='Input noteheads CSV with bar timing')
     parser.add_argument('sync_yaml', help='Input MIDI-based sync YAML file')
     parser.add_argument('beats_yaml', help='Input detected beats YAML file')
+    parser.add_argument('-c', '--config', help='Configuration YAML file (optional)')
     parser.add_argument('-o', '--output', help='Output audio-synced YAML file (default: sync_yaml with _audio suffix)')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
     parser.add_argument('--debug-beats-only', action='store_true', help='DEBUG: Only include noteheads exactly on beats (for visualization debugging)')
@@ -808,6 +859,7 @@ def main():
     noteheads_csv = Path(args.noteheads_csv)
     sync_yaml = Path(args.sync_yaml)
     beats_yaml = Path(args.beats_yaml)
+    config_file = Path(args.config) if args.config else None
     
     if args.output:
         output_yaml = Path(args.output)
@@ -820,6 +872,7 @@ def main():
     print(f"📄 Noteheads CSV: {noteheads_csv}")
     print(f"📊 Sync YAML: {sync_yaml}")
     print(f"🎧 Detected beats: {beats_yaml}")
+    print(f"⚙️  Config file: {config_file or 'None (using defaults)'}")
     print(f"💾 Output: {output_yaml}")
     print()
     
@@ -828,6 +881,7 @@ def main():
     noteheads = load_noteheads_with_bars(noteheads_csv)
     sync_data = load_sync_data(sync_yaml)
     detected_beats = load_detected_beats(beats_yaml)
+    config_data = load_config_data(config_file)
     
     if not noteheads or not sync_data or not detected_beats:
         print("Error: Failed to load required input data")
@@ -837,7 +891,7 @@ def main():
     
     # Step 1: Calculate bar durations to understand beat structure
     print("Step 1: Analyzing bar structure and calculating beat durations...")
-    bars_info = calculate_bar_durations(noteheads, sync_data)
+    bars_info = calculate_bar_durations(noteheads, sync_data, config_data)
     
     # Step 1b: Calculate anacrusis (pickup bar) information
     print("Step 1b: Analyzing anacrusis (pickup bar)...")
@@ -869,7 +923,7 @@ def main():
         audio_sync_data = apply_tick_mappings_to_flow_debug_beats_only(sync_data, complete_tick_mapping, beat_assignments)
     else:
         print("Step 5: Applying complete tick mappings to create audio-synced YAML...")
-        audio_sync_data = apply_tick_mappings_to_flow(sync_data, complete_tick_mapping)
+        audio_sync_data = apply_tick_mappings_to_flow(sync_data, complete_tick_mapping, detected_beats)
     
     # Save audio-synced data
     print(f"\nSaving audio-synced data to {output_yaml}...")

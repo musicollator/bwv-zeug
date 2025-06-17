@@ -1,5 +1,13 @@
-Here's the updated script with both detection methods! It will automatically choose the right method based on your parameters.
+conda activate unified-env    
+python ../bwv-zeug/audio/fermata_chopper.py \
+  -i exports/bwv245.wav \
+  --energy-percentile 10 \
+  --stability-percentile 90 \
+  --min-duration 0.1 \
+  -o segments \
+  --plot
 
+  
 ## Option 2: Simple Energy Method (what you wanted)
 ```bash
 # Find regions below 10th percentile energy, clean output directory first
