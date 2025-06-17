@@ -488,10 +488,11 @@ def calculate_proportional_beat_ticks(verification: Dict, detected_beats: List[f
     tick_mapping = {}
     
     for i, (old_tick, detected_beat) in enumerate(zip(beat_ticks, detected_beats)):
-        # Proportional mapping: preserve relative positions within the beat range
-        # Map beat time range to the original tick range proportionally
-        beat_ratio = (detected_beat - first_beat) / beat_range
-        new_tick = first_tick + int(round(beat_ratio * tick_range))
+        # Map detected beat times to tick values that represent actual time positions
+        # Use a time-based tick system where each tick represents a small time unit
+        # Scale detected beat time to create meaningful tick values for visualization
+        time_scale_factor = 1000  # 1 tick = 1 millisecond
+        new_tick = int(round(detected_beat * time_scale_factor))
         
         tick_mapping[old_tick] = new_tick
         
@@ -664,6 +665,101 @@ def apply_tick_mappings_to_flow(sync_data: Dict, complete_tick_mapping: Dict[int
         del audio_sync_data['meta']['tickToSecondRatio']
         print(f"   🗑️  Removed obsolete tickToSecondRatio from metadata")
     
+    # Update metadata to reflect new time-based tick system
+    if 'meta' in audio_sync_data and complete_tick_mapping:
+        all_new_ticks = list(complete_tick_mapping.values())
+        if all_new_ticks:
+            audio_sync_data['meta']['minTick'] = min(all_new_ticks)
+            audio_sync_data['meta']['maxTick'] = max(all_new_ticks)
+            print(f"   🔄 Updated metadata: minTick={audio_sync_data['meta']['minTick']}, maxTick={audio_sync_data['meta']['maxTick']}")
+    
+    return audio_sync_data
+
+def apply_tick_mappings_to_flow_debug_beats_only(sync_data: Dict, complete_tick_mapping: Dict[int, int], beat_assignments: List[Dict]) -> Dict:
+    """
+    DEBUG VERSION: Apply tick mappings but only include noteheads that are exactly on beats.
+    This helps verify that beat-aligned noteheads map correctly to detected beats.
+    
+    Args:
+        sync_data: Original MIDI sync data
+        complete_tick_mapping: Complete mapping from old_tick -> new_tick
+        beat_assignments: List of beat assignment data for filtering
+    
+    Returns:
+        Audio-synced sync data with only beat-aligned noteheads
+    """
+    audio_sync_data = sync_data.copy()
+    
+    if 'flow' not in audio_sync_data:
+        return audio_sync_data
+    
+    print(f"\n🐛 DEBUG: Applying Tick Mappings (BEATS ONLY):")
+    print(f"   Total tick mappings available: {len(complete_tick_mapping)}")
+    
+    # Create a set of ticks that are exactly on beats
+    on_beat_ticks = set()
+    for assignment in beat_assignments:
+        if assignment['on_beat']:
+            on_beat_ticks.add(assignment['tick'])
+    print(f"   🐛 Found {len(on_beat_ticks)} distinct ticks exactly on beats: {sorted(on_beat_ticks)[:10]}...")
+    
+    transformed_items = 0
+    unchanged_items = 0
+    filtered_items = 0
+    new_flow = []
+    
+    # Transform each flow item, filtering to beat-aligned noteheads only
+    for i, flow_item in enumerate(audio_sync_data['flow']):
+        if len(flow_item) >= 4:
+            start_tick = flow_item[0]
+            channel = flow_item[1]
+            end_tick = flow_item[2]
+            info = flow_item[3]
+            
+            # Keep bars and fermatas
+            if info == 'bar' or info == 'fermata':
+                new_start_tick = complete_tick_mapping.get(start_tick, start_tick)
+                new_end_tick = end_tick  # bars/fermatas don't have end ticks to transform
+                new_flow.append([new_start_tick, channel, new_end_tick, info])
+                if new_start_tick != start_tick:
+                    transformed_items += 1
+                else:
+                    unchanged_items += 1
+                continue
+            
+            # For noteheads: only keep those exactly on beats
+            if channel is not None and isinstance(info, list):
+                # This is a notehead - check if it's on a beat
+                if start_tick not in on_beat_ticks:
+                    filtered_items += 1
+                    continue  # Skip this notehead - it's not exactly on a beat
+                
+                # This notehead is exactly on a beat - keep it
+                new_start_tick = complete_tick_mapping.get(start_tick, start_tick)
+                new_end_tick = complete_tick_mapping.get(end_tick, end_tick)
+                new_flow.append([new_start_tick, channel, new_end_tick, info])
+                
+                if new_start_tick != start_tick or new_end_tick != end_tick:
+                    transformed_items += 1
+                    # Show beat mappings for debugging
+                    if transformed_items <= 10:
+                        print(f"   🐛 Beat notehead {i}: tick {start_tick} → {new_start_tick} (should match detected beat)")
+                else:
+                    unchanged_items += 1
+    
+    # Update flow with filtered items
+    audio_sync_data['flow'] = new_flow
+    
+    print(f"   ✅ Transformed {transformed_items} flow items")
+    print(f"   📌 {unchanged_items} items unchanged")
+    print(f"   🐛 Filtered out {filtered_items} noteheads (not exactly on beats)")
+    print(f"   🐛 Final flow contains {len(new_flow)} items ({len([f for f in new_flow if isinstance(f[3], list)])} noteheads)")
+    
+    # Remove tickToSecondRatio from metadata
+    if 'meta' in audio_sync_data and 'tickToSecondRatio' in audio_sync_data['meta']:
+        del audio_sync_data['meta']['tickToSecondRatio']
+        print(f"   🗑️  Removed obsolete tickToSecondRatio from metadata")
+    
     return audio_sync_data
 
 def save_audio_synced_yaml(audio_sync_data: Dict, output_yaml: Path):
@@ -705,6 +801,7 @@ def main():
     parser.add_argument('beats_yaml', help='Input detected beats YAML file')
     parser.add_argument('-o', '--output', help='Output audio-synced YAML file (default: sync_yaml with _audio suffix)')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--debug-beats-only', action='store_true', help='DEBUG: Only include noteheads exactly on beats (for visualization debugging)')
     
     args = parser.parse_args()
     
@@ -767,8 +864,12 @@ def main():
     complete_tick_mapping = interpolate_non_beat_ticks(sync_data, beat_tick_mapping)
     
     # Step 5: Apply complete tick mappings to create final audio-synced YAML
-    print("Step 5: Applying complete tick mappings to create audio-synced YAML...")
-    audio_sync_data = apply_tick_mappings_to_flow(sync_data, complete_tick_mapping)
+    if args.debug_beats_only:
+        print("Step 5: DEBUG - Applying tick mappings to BEATS ONLY...")
+        audio_sync_data = apply_tick_mappings_to_flow_debug_beats_only(sync_data, complete_tick_mapping, beat_assignments)
+    else:
+        print("Step 5: Applying complete tick mappings to create audio-synced YAML...")
+        audio_sync_data = apply_tick_mappings_to_flow(sync_data, complete_tick_mapping)
     
     # Save audio-synced data
     print(f"\nSaving audio-synced data to {output_yaml}...")

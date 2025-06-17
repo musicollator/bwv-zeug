@@ -234,7 +234,7 @@
   },
   {
     "hrefs": [
-      "test-main.ly:36:14"
+      "test-main.ly:36:6"
     ],
     "on_tick": 2112,
     "off_tick": 2304,
@@ -245,7 +245,7 @@
   },
   {
     "hrefs": [
-      "test-main.ly:36:6"
+      "test-main.ly:36:14"
     ],
     "on_tick": 2112,
     "off_tick": 2496,

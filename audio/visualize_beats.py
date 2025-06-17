@@ -40,11 +40,11 @@ def load_yaml_timing_marks(yaml_path, detected_beats=None):
     for event in flow:
         tick, channel, _, info = event
         
-        # Bar markers
-        if info == 'bar':
-            bar_ticks.append(tick)
+        # Skip bar markers and fermata markers for cleaner visualization
+        if info == 'bar' or info == 'fermata':
+            continue
         
-        # Note onsets (rough quarter note approximation)
+        # Note onsets only (excluding bar/fermata markers)
         if channel is not None and isinstance(info, list):
             quarter_note_ticks.append(tick)
     
