@@ -86,8 +86,7 @@ The complete workflow transforms LilyPond scores through these stages:
 - **ANTLR4** for Mermaid diagram parsing
 
 ### Audio Processing (Optional)
-- **Conda environment** with librosa for audio segmentation
-- **Virtual environment** with madmom for beat detection
+- **Conda environment** with librosa & madmom for audio segmentation and beat detection
 
 ### Python Packages
 Key packages include: invoke, antlr4-python3-runtime, pandas, pyyaml, lxml
