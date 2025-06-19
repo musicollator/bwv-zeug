@@ -73,7 +73,7 @@ The complete workflow transforms LilyPond scores through these stages:
 
 1. **LilyPond Compilation** - PDF, SVG, and MIDI generation via Docker
 2. **SVG Processing** - Link cleanup, animation preparation, optimization
-3. **Data Extraction** - Noteheads, ties, and MIDI events (parallel processing)
+3. **Data Extraction** - Noteheads, ties, and MIDI events
 4. **Data Alignment** - Synchronize MIDI timing with visual positions
 5. **Sync Generation** - Create unified YAML timing data
 

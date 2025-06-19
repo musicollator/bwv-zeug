@@ -32,7 +32,7 @@ The workflow processes LilyPond source files through multiple stages to generate
 - **Animation Preparation**: [`ensure_swellable.py`](../python/ensure_swellable.py) - Restructure DOM for CSS transform animations on noteheads  
 - **Optimization**: [`optimize.py`](../python/optimize.py) - Apply SVGO to reduce file size and clean markup
 
-### 3. Data Extraction (Parallel Processing)
+### 3. Data Extraction
 **Extract timing and visual data from one-line versions**
 - **Notehead Extraction**: [`extract_note_heads.py`](../python/extract_note_heads.py) - Parse SVG to extract notehead positions and pitches
 - **Tie Extraction**: [`extract_ties.py`](../python/extract_ties.py) - Identify tied note relationships from SVG grob attributes
