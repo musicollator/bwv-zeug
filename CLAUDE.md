@@ -111,7 +111,6 @@ Key packages include: invoke, antlr4-python3-runtime, pandas, pyyaml, lxml
 **Never commit these generated files:**
 - `invoke/tasks_generated.py`
 - `invoke/antlr/` compiled parsers
-- `*/exports/` directories
 - `.build_cache.json`
 
 **Always commit:**
