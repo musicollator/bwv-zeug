@@ -1,10 +1,10 @@
-# add_clicks.py - COMPLETE VERSION with beat timing export
+# add_clicks.py - COMPLETE VERSION with beat timing export and MP3 support
 
 import argparse
 from pathlib import Path
 import numpy as np
 import soundfile as sf
-import yaml  # 🟢 NEW: Added for beat export
+import yaml
 
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from add_clicks_utils import (
@@ -14,25 +14,25 @@ from add_clicks_utils import (
     clean_click_outputs,
 )
 
-# 🟢 NEW: Global variables for beat timing collection
+# Global variables for beat timing collection
 beat_data = {}
 chunk_durations = {}
 
-# 🟢 NEW: Functions for beat timing export
-def get_audio_duration(wav_path):
-    """Get duration of audio file."""
-    info = sf.info(str(wav_path))
+# Functions for beat timing export
+def get_audio_duration(audio_path):
+    """Get duration of audio file (supports .wav and .mp3)."""
+    info = sf.info(str(audio_path))
     return info.frames / info.samplerate
 
-def save_beat_timing(wav_path, beats):
+def save_beat_timing(audio_path, beats):
     """Save beat timing and duration to global dict."""
     global beat_data, chunk_durations
     
-    segment_key = segment_key_from_path(wav_path)
-    duration = get_audio_duration(wav_path)
+    segment_key = segment_key_from_path(audio_path)
+    duration = get_audio_duration(audio_path)
     
     beat_data[segment_key] = {
-        'file': str(wav_path),
+        'file': str(audio_path),
         'beats': beats.tolist(),
         'num_beats': len(beats),
         'duration': duration,
@@ -93,21 +93,28 @@ def export_beat_data(output_file="detected_beats.yaml"):
     print(f"✅ Beat data exported to {output_file}")
     print(f"✅ Total: {len(concatenated_beats)} beats across {total_duration:.2f}s")
 
-# ORIGINAL FUNCTION (unchanged except for one line)
-def process_file(wav_path, processor, click, click_limits):
-    segment_key = segment_key_from_path(wav_path)
+def get_output_path(audio_path):
+    """Generate output path for processed audio (always .wav output)."""
+    path = Path(audio_path)
+    # Remove original extension and add _with_clicks.wav
+    stem = path.stem
+    return path.parent / f"{stem}_with_clicks.wav"
+
+def process_file(audio_path, processor, click, click_limits):
+    """Process audio file (supports .wav and .mp3 input, always outputs .wav)."""
+    segment_key = segment_key_from_path(audio_path)
     limits = click_limits.get(segment_key, {})
     max_clicks = limits.get("max_clicks", float("inf"))
     last_beat_override = limits.get("last_beat")
 
     # Extract beat times
-    act = RNNBeatProcessor()(str(wav_path))
+    act = RNNBeatProcessor()(str(audio_path))
     beats = processor(act)
 
-    # 🟢 MOVED: Save beat timing BEFORE early return for no beats
+    # Save beat timing BEFORE early return for no beats
     if len(beats) == 0:
-        print(f"⚠️  Skipping (no beats found): {wav_path}")
-        save_beat_timing(wav_path, beats)  # Save empty beats for quiet segments
+        print(f"⚠️  Skipping (no beats found): {audio_path}")
+        save_beat_timing(audio_path, beats)  # Save empty beats for quiet segments
         return
 
     if beats[0] > 0.5:
@@ -121,11 +128,11 @@ def process_file(wav_path, processor, click, click_limits):
         print(f"⏱️  Appending manual last beat at {last_beat_override:.2f}s")
         beats = np.append(beats, last_beat_override)
 
-    # 🟢 Save beat timing for segments WITH beats
-    save_beat_timing(wav_path, beats)
+    # Save beat timing for segments WITH beats
+    save_beat_timing(audio_path, beats)
 
-    # Read original audio
-    y, sr = sf.read(str(wav_path))
+    # Read original audio (soundfile handles both .wav and .mp3)
+    y, sr = sf.read(str(audio_path))
     output = np.copy(y)
 
     # Mix in clicks
@@ -134,17 +141,33 @@ def process_file(wav_path, processor, click, click_limits):
         if i + len(click) <= len(output):
             output[i : i + len(click)] += click[: len(output) - i]
 
-    out_path = str(wav_path).replace(".wav", "_with_clicks.wav")
-    sf.write(out_path, output, sr)
+    # Generate output path (always .wav)
+    out_path = get_output_path(audio_path)
+    sf.write(str(out_path), output, sr)
     print(f"✅ Saved: {out_path}")
 
+def get_audio_files(directory):
+    """Get all supported audio files (.wav and .mp3) from directory."""
+    audio_files = []
+    
+    # Collect .wav files
+    wav_files = list(directory.glob("*.wav"))
+    audio_files.extend(wav_files)
+    
+    # Collect .mp3 files
+    mp3_files = list(directory.glob("*.mp3"))
+    audio_files.extend(mp3_files)
+    
+    # Sort by filename to ensure consistent processing order
+    audio_files.sort(key=lambda x: x.name)
+    
+    print(f"📁 Found {len(wav_files)} .wav and {len(mp3_files)} .mp3 files")
+    return audio_files
 
-# ORIGINAL MAIN (with one new argument and one new line at the end)
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("directory", type=str)
-    parser.add_argument("--clean", action="store_true")
-    # 🟢 NEW: Optional argument for beat export file
+    parser = argparse.ArgumentParser(description="Add click tracks to audio files (.wav and .mp3 supported)")
+    parser.add_argument("directory", type=str, help="Directory containing audio files")
+    parser.add_argument("--clean", action="store_true", help="Clean up existing *_with_clicks.wav files")
     parser.add_argument("--export-beats", type=str, default="detected_beats.yaml", 
                        help="Export beat timing to YAML file")
     args = parser.parse_args()
@@ -160,17 +183,24 @@ if __name__ == "__main__":
         fps=100, min_bpm=40, max_bpm=140, transition_lambda=15
     )
 
-    for wav_path in sorted(directory.glob("*.wav")):
-        key = segment_key_from_path(wav_path)
+    # Get all supported audio files
+    audio_files = get_audio_files(directory)
+    
+    if not audio_files:
+        print("⚠️  No supported audio files found (.wav or .mp3)")
+        exit(1)
+
+    for audio_path in audio_files:
+        key = segment_key_from_path(audio_path)
         if click_limits.get(key, {}).get("max_clicks", float("inf")) == 0:
-            print(f"⏩ Skipping (explicit 0 clicks): {wav_path}")
-            # 🟢 FIXED: Save timing data even for explicitly skipped files
-            save_beat_timing(wav_path, np.array([]))  # Save empty beats array
+            print(f"⏩ Skipping (explicit 0 clicks): {audio_path}")
+            # Save timing data even for explicitly skipped files
+            save_beat_timing(audio_path, np.array([]))  # Save empty beats array
             continue
 
-        print(f"🎧 Processing: {wav_path}")
-        process_file(wav_path, processor, click, click_limits)
+        print(f"🎧 Processing: {audio_path}")
+        process_file(audio_path, processor, click, click_limits)
 
-    # 🟢 NEW: Export beat data at the end
+    # Export beat data at the end
     print(f"\n📊 BEAT TIMING SUMMARY:")
     export_beat_data(args.export_beats)

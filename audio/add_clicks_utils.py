@@ -1,4 +1,4 @@
-# utils.py
+# add_clicks_utils.py - Updated with MP3 support
 
 from pathlib import Path
 import soundfile as sf
@@ -8,6 +8,7 @@ import os
 
 
 def segment_key_from_path(path):
+    """Get segment key from file path (works with any audio format)."""
     return Path(path).name
 
 
@@ -39,8 +40,17 @@ def load_click_limits(yaml_path="click_limits.yaml"):
 
 
 def clean_click_outputs(directory):
-    """Delete all *_with_clicks.wav files in the directory."""
+    """Delete all *_with_clicks.wav files in the directory (from both .wav and .mp3 processing)."""
     print("🧹 Cleaning up *_with_clicks.wav files...")
-    for path in Path(directory).glob("*_with_clicks.wav"):
+    
+    click_files = list(Path(directory).glob("*_with_clicks.wav"))
+    
+    if not click_files:
+        print("   📂 No *_with_clicks.wav files found to clean")
+        return
+    
+    for path in click_files:
         print(f"   🗑️ Removed: {path.name}")
         os.remove(path)
+    
+    print(f"   ✅ Cleaned {len(click_files)} files")
