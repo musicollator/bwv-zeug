@@ -49,6 +49,7 @@ onePageLayout = \layout {
   \context {
     \Voice
     \override StringNumber.stencil = ##f
+    %% \override Fingering.stencil = ##f
   }
   % Apply simple highlighting only for SVG output
   #(if is-svg?
@@ -70,6 +71,7 @@ oneLineLayout = \layout {
   \context {
     \Voice
     \override StringNumber.stencil = ##f
+    \override Fingering.stencil = ##f
   }
   \context {
     \Voice
