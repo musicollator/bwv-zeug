@@ -7,9 +7,11 @@
 % Formatted one-pager for display
 \book {
   \bookOutputName "test"
-  \onePagePaper 
+  \onePagePaper
   \score {
     \bwv
-    \onePageLayout
+    \layout {
+      \onePageLayout
+    }
   }
 }

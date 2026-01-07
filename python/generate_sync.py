@@ -607,13 +607,13 @@ def clean_svg(svg_root):
             del rect.attrib[attr]
     
     # =============================================================================
-    # COALESCE NOTE ELEMENTS (UPDATED FOR data-ref)
+    # COALESCE NOTE ELEMENTS (UPDATED FOR data-ref AND TEXT PRESERVATION)
     # =============================================================================
     
-    # Coalesce note <a> elements: move data-ref to contained path and remove wrapper
+    # Coalesce note <a> elements: move data-ref to contained elements and remove wrapper
     # Normalized pipeline generates: <a data-ref="file.ly:37:21"><path d="..."/></a>
     # We convert to: <path d="..." data-ref="file.ly:37:21"/>
-    # This simplifies JavaScript targeting and reduces DOM complexity
+    # IMPORTANT: Also preserve text elements (markup like "sempre")
     
     # Build a parent map for ElementTree (since getparent() doesn't exist)
     parent_map = {c: p for p in svg_root.iter() for c in p}
@@ -638,12 +638,21 @@ def clean_svg(svg_root):
         
         # Count all path elements inside this <a>
         path_elements = []
+        text_elements = []
+        other_elements = []
+        
         for child in a_elem:
             if child.tag == 'path' or child.tag.endswith('}path'):
                 path_elements.append(child)
+            elif child.tag == 'text' or child.tag.endswith('}text'):
+                text_elements.append(child)
+            else:
+                other_elements.append(child)
         
-        if len(path_elements) == 1:
-            # Single path: current behavior (flatten to path with data-ref)
+        total_children = len(path_elements) + len(text_elements) + len(other_elements)
+        
+        if len(path_elements) == 1 and total_children == 1:
+            # Single path only: current behavior (flatten to path with data-ref)
             path_elem = path_elements[0]
             print(f"Processing single path: {data_ref} -> {simplified_ref}")
             
@@ -669,9 +678,17 @@ def clean_svg(svg_root):
             else:
                 print(f"Warning: Could not find parent for <a> element")
                 
-        elif len(path_elements) > 1:
-            # Multiple paths: convert <a> to <g> (group) and preserve all children
-            print(f"Processing multiple paths: {data_ref} -> {simplified_ref} ({len(path_elements)} paths)")
+        elif total_children > 0:
+            # Multiple elements or text elements: convert <a> to <g> (group) and preserve all children
+            element_types = []
+            if path_elements:
+                element_types.append(f"{len(path_elements)} path(s)")
+            if text_elements:
+                element_types.append(f"{len(text_elements)} text element(s)")
+            if other_elements:
+                element_types.append(f"{len(other_elements)} other element(s)")
+            
+            print(f"Processing multiple elements: {data_ref} -> {simplified_ref} ({', '.join(element_types)})")
             
             # Create a new group element
             new_group = ET.Element('g')
@@ -695,8 +712,17 @@ def clean_svg(svg_root):
                 print(f"Warning: Could not find parent for <a> element")
                 
         else:
-            print(f"Warning: No path found in <a> element with data-ref {data_ref}")
+            print(f"Warning: Empty <a> element with data-ref {data_ref} - preserving as group")
+            # Convert empty <a> to empty <g> with data-ref (preserve for JavaScript targeting)
+            new_group = ET.Element('g')
+            new_group.set('data-ref', simplified_ref)
             
+            parent = parent_map.get(a_elem)
+            if parent is not None:
+                a_index = list(parent).index(a_elem)
+                parent.insert(a_index, new_group)
+                parent.remove(a_elem)
+                
     print(f"Successfully processed {len(elements_to_process)} note elements")
     
     # =============================================================================
@@ -744,7 +770,7 @@ def clean_svg(svg_root):
     # This is now handled by CSS, reducing redundancy
     for elem in svg_root.findall('.//*[@fill="currentColor"]'):
         del elem.attrib['fill']
-
+        
 # =============================================================================
 # MAIN PROCESSING FUNCTION
 # =============================================================================

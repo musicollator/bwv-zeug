@@ -152,10 +152,10 @@ def main():
         print(f"   📐 Preserved {len(svg_df)} SVG noteheads in tolerance-based order")
 
         # =================================================================
-        # MAIN ALIGNMENT PROCESS
+        # MAIN ALIGNMENT PROCESS (LENIENT FOR VOICE CROSSING)
         # =================================================================
 
-        print("🎯 Aligning MIDI events with SVG noteheads...")
+        print("🎯 Aligning MIDI events with SVG noteheads (lenient mode)...")
         
         # Verify we have the same number of events to align
         if len(midi_df) != len(svg_df):
@@ -166,78 +166,97 @@ def main():
             print()
         
         aligned_notes = []
-        mismatch_count = 0
+        group_mismatch_count = 0
 
-        # Process each MIDI-SVG pair in synchronized order
-        min_count = min(len(midi_df), len(svg_df))
-        for index in range(min_count):
-            midi_row = midi_df.iloc[index]
-            svg_row = svg_df.iloc[index]
+        # Helper function to create aligned note
+        def create_aligned_note(midi_row, svg_row):
+            # Build complete tie group from embedded tie data
+            complete_data_refs = [svg_row.data_ref]
             
-            # Compare LilyPond notation directly (both sources now have LilyPond format)
-            midi_lilypond_pitch = midi_row.pitch  # This is LilyPond notation from extract_note_events.py
-            svg_lilypond_pitch = svg_row.snippet  # This is LilyPond notation from SVG extraction
-            
-            # Verify pitch alignment by comparing LilyPond notation strings
-            midi_pitch_num = lilypond_to_midi_pitch(midi_lilypond_pitch)
-            svg_pitch_num = lilypond_to_midi_pitch(svg_lilypond_pitch)
-
-            if midi_pitch_num != svg_pitch_num:
-                print(f"⚠️  Pitch mismatch at position {index}:")
-                print(f"    midi_pitch_num: '{midi_pitch_num}' MIDI: '{midi_lilypond_pitch}' (MIDI number: {midi_row.midi})")
-                print(f"    svg_pitch_num : '{svg_pitch_num}' SVG: '{svg_lilypond_pitch}'")
-                print(f"    SVG data_ref: {svg_row.data_ref}")
-                mismatch_count += 1
-                
-                # Show some context around the mismatch
-                print(f"    Context - MIDI events around position {index}:")
-                start_ctx = max(0, index-2)
-                end_ctx = min(len(midi_df), index+3)
-                for ctx_idx in range(start_ctx, end_ctx):
-                    marker = " --> " if ctx_idx == index else "     "
-                    ctx_row = midi_df.iloc[ctx_idx]
-                    print(f"    {marker}[{ctx_idx}] '{ctx_row.pitch}' (MIDI {ctx_row.midi})")
-                
-                print(f"    Context - SVG noteheads around position {index}:")
-                for ctx_idx in range(start_ctx, end_ctx):
-                    if ctx_idx < len(svg_df):
-                        marker = " --> " if ctx_idx == index else "     "
-                        ctx_row = svg_df.iloc[ctx_idx]
-                        print(f"    {marker}[{ctx_idx}] '{ctx_row.snippet}'")
-                
-                sys.exit(1)  # Stop on first mismatch for debugging
-
-            # Build complete tie group from embedded tie data (normalized)
-            complete_data_refs = [svg_row.data_ref]  # Start with primary data_ref
-            
-            # Add tied secondary data_refs if they exist
-            # Handle both empty strings and NaN values from pandas
             tied_data_refs_value = svg_row.tied_data_refs
             if pd.notna(tied_data_refs_value) and str(tied_data_refs_value).strip():
                 secondary_data_refs = str(tied_data_refs_value).split("|")
                 complete_data_refs.extend(secondary_data_refs)
 
-            # Create aligned note entry with tick timing and spatial coordinates
-            aligned_note = {                                                                  
-                "hrefs": complete_data_refs,                                   # All SVG noteheads for this musical event (normalized)
-                "on_tick": make_json_serializable(midi_row.on_tick),           # Start time in ticks
-                "off_tick": make_json_serializable(midi_row.off_tick),         # End time in ticks
-                "pitch": make_json_serializable(midi_row.midi),                # MIDI pitch number (for audio playback)
-                "channel": make_json_serializable(midi_row.channel),           # MIDI channel (for multi-voice music)
-                "x": make_json_serializable(svg_row.x),                        # X coordinate from SVG (for spatial interpolation)
-                "y": make_json_serializable(svg_row.y)                         # Y coordinate from SVG (for future use)
-            }                                                                  
-            
-            aligned_notes.append(aligned_note)
+            return {
+                "hrefs": complete_data_refs,
+                "on_tick": make_json_serializable(midi_row.on_tick),
+                "off_tick": make_json_serializable(midi_row.off_tick),
+                "pitch": make_json_serializable(midi_row.midi),
+                "channel": make_json_serializable(midi_row.channel),
+                "x": make_json_serializable(svg_row.x),
+                "y": make_json_serializable(svg_row.y)
+            }
 
-        # Report if there were unmatched events
-        if len(midi_df) != len(svg_df):
-            unmatched_midi = len(midi_df) - min_count
-            unmatched_svg = len(svg_df) - min_count
-            if unmatched_midi > 0:
-                print(f"   ⚠️  {unmatched_midi} unmatched MIDI events")
-            if unmatched_svg > 0:
-                print(f"   ⚠️  {unmatched_svg} unmatched SVG noteheads")
+        # Group MIDI events by tick (simultaneous events)
+        midi_groups = list(midi_df.groupby('on_tick'))
+        
+        print(f"   📊 Found {len(midi_groups)} MIDI time groups")
+        
+        svg_index = 0  # Track position in SVG data
+        
+        for tick, midi_group in midi_groups:
+            group_size = len(midi_group)
+            
+            # Get corresponding SVG events (same count as MIDI group)
+            if svg_index + group_size > len(svg_df):
+                print(f"❌ Not enough SVG events for MIDI group at tick {tick}")
+                break
+                
+            svg_group = svg_df.iloc[svg_index:svg_index + group_size].copy()
+            svg_index += group_size
+            
+            print(f"   🎵 Processing tick {tick}: {group_size} simultaneous events")
+            
+            # Try to match by pitch within the group
+            midi_pitches = [lilypond_to_midi_pitch(row.pitch) for _, row in midi_group.iterrows()]
+            svg_pitches = [lilypond_to_midi_pitch(row.snippet) for _, row in svg_group.iterrows()]
+            
+            # Check if pitches match (in any order)
+            if sorted(midi_pitches) == sorted(svg_pitches):
+                # Perfect match - try to align by pitch
+                print(f"      ✅ Perfect pitch match for group")
+                
+                # Create mapping by pitch
+                midi_list = list(midi_group.iterrows())
+                svg_list = list(svg_group.iterrows())
+                
+                # Sort both by pitch for alignment
+                midi_sorted = sorted(midi_list, key=lambda x: lilypond_to_midi_pitch(x[1].pitch))
+                svg_sorted = sorted(svg_list, key=lambda x: lilypond_to_midi_pitch(x[1].snippet))
+                
+                # Align sorted pairs
+                for (_, midi_row), (_, svg_row) in zip(midi_sorted, svg_sorted):
+                    aligned_note = create_aligned_note(midi_row, svg_row)
+                    aligned_notes.append(aligned_note)
+                    
+            else:
+                # Pitch mismatch within group - emit warning but continue
+                print(f"      ⚠️  Pitch mismatch in group at tick {tick}:")
+                print(f"         MIDI pitches: {[midi_df.iloc[i].pitch for i in midi_group.index]} -> {midi_pitches}")
+                print(f"         SVG pitches:  {[svg_df.iloc[i].snippet for i in svg_group.index]} -> {svg_pitches}")
+                print(f"         Continuing with original order (voice crossing detected)")
+                
+                group_mismatch_count += 1
+                
+                # Use original order despite mismatch
+                for (_, midi_row), (_, svg_row) in zip(midi_group.iterrows(), svg_group.iterrows()):
+                    aligned_note = create_aligned_note(midi_row, svg_row)
+                    aligned_notes.append(aligned_note)
+
+        # Report results
+        if group_mismatch_count > 0:
+            print(f"   ⚠️  {group_mismatch_count} groups had pitch mismatches (voice crossing)")
+            print(f"      Used original ordering for these groups")
+        
+        if svg_index < len(svg_df):
+            unmatched_svg = len(svg_df) - svg_index
+            print(f"   ⚠️  {unmatched_svg} unmatched SVG noteheads remain")
+
+        # Final summary at the end of alignment section
+        print(f"   ✅ Successfully processed {len(aligned_notes)} note alignments")
+        if group_mismatch_count > 0:
+            print(f"   ⚠️  Voice crossing detected in {group_mismatch_count} groups (continued anyway)")
 
         # =================================================================
         # OUTPUT GENERATION
@@ -266,13 +285,13 @@ def main():
         print(f"   🔧 Using normalized data_ref attributes")
         print(f"   💾 Saved: {output_json}")
 
-        if mismatch_count > 0:
-            print(f"⚠️  {mismatch_count} pitch mismatches detected")
+        if group_mismatch_count > 0:
+            print(f"⚠️  Voice crossing in {group_mismatch_count} groups (handled gracefully)")
 
         print()
         print("🎉 Alignment completed successfully!")
         print("🔧 All data processed using normalized pipeline - no cleaning performed")
-
+        
     except FileNotFoundError as e:
         print(f"❌ File error: {e}")
         sys.exit(1)

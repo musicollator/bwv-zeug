@@ -12,7 +12,9 @@
       \tempo 4 = 120
       \bwv
     }
-    \oneLineLayout
+    \layout {
+      \oneLineLayout
+    }
     \midiStaffPerformerToVoiceContext
   }
 }
